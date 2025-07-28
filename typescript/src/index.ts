@@ -14,4 +14,5 @@
 export { Client } from './client';
 export { ConfigClient } from './config-client';
 export { TaskClient } from './task-client';
+export { AppIDClient } from './appid-client';
 export * from './types';

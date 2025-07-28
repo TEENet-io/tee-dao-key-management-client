@@ -17,6 +17,8 @@ export interface NodeConfig {
   cert: Buffer;
   key: Buffer;
   targetCert: Buffer;
+  appNodeAddr: string;
+  appNodeCert: Buffer;
 }
 
 export interface ClientOptions {
@@ -54,6 +56,7 @@ export const NodeType = {
   INVALID_NODE: 0,
   TEE_NODE: 1,
   MESH_NODE: 2,
+  APP_NODE: 3,
 } as const;
 
 export const Constants = {

@@ -73,9 +73,12 @@ export class ConfigClient {
       const nodeInfo = await this.getNodeInfo(client!);
       const peers = await this.getPeerNodes(client!);
 
+      // Find TEE node and App node
       const teeNode = peers.peers?.find((peer: any) => peer.type === NodeType.TEE_NODE);
-      if (!teeNode) {
-        throw new Error('no TEE node found');
+      const appNode = peers.peers?.find((peer: any) => peer.type === NodeType.APP_NODE);
+      
+      if (!teeNode && !appNode) {
+        throw new Error('no TEE or App node found');
       }
 
       const config: NodeConfig = {
@@ -84,6 +87,8 @@ export class ConfigClient {
         cert: nodeInfo.cert.data ? Buffer.from(nodeInfo.cert.data) : Buffer.from(nodeInfo.cert),
         key: nodeInfo.key.data ? Buffer.from(nodeInfo.key.data) : Buffer.from(nodeInfo.key),
         targetCert: teeNode.cert.data ? Buffer.from(teeNode.cert.data) : Buffer.from(teeNode.cert),
+        appNodeAddr: appNode.rpc_address,
+        appNodeCert: appNode.cert.data ? Buffer.from(appNode.cert.data) : Buffer.from(appNode.cert),
       };
 
       console.log(`Retrieved config from server, node ID: ${config.nodeId}`);

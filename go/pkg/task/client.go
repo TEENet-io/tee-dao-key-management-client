@@ -16,12 +16,11 @@ package task
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"time"
 
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/constants"
 	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/config"
+	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/constants"
 	pb "github.com/TEENet-io/tee-dao-key-management-client/go/proto/key_management"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -49,15 +48,9 @@ func NewClient(nodeConfig *config.NodeConfig) *Client {
 }
 
 // Connect connects to TEE server
-func (c *Client) Connect(ctx context.Context) error {
+func (c *Client) Connect(ctx context.Context, tlsConfig *tls.Config) error {
 	if c.conn != nil {
 		c.conn.Close()
-	}
-
-	// Create TLS configuration
-	tlsConfig, err := c.createTLSConfig()
-	if err != nil {
-		return fmt.Errorf("failed to create TLS config: %w", err)
 	}
 
 	// gRPC connection options with TLS and retry configuration
@@ -122,26 +115,6 @@ func (c *Client) Sign(ctx context.Context, message, publicKey []byte, protocol, 
 	}
 
 	return resp.GetSignature(), nil
-}
-
-// createTLSConfig creates TLS configuration
-func (c *Client) createTLSConfig() (*tls.Config, error) {
-	// Parse client certificate and key
-	cert, err := tls.X509KeyPair(c.config.Cert, c.config.Key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse client certificate: %w", err)
-	}
-
-	// Parse server certificate
-	caPool := x509.NewCertPool()
-	if !caPool.AppendCertsFromPEM(c.config.TargetCert) {
-		return nil, fmt.Errorf("failed to parse server certificate")
-	}
-
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      caPool,
-	}, nil
 }
 
 // SetTimeout sets task timeout

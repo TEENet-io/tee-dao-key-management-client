@@ -29,15 +29,18 @@ const (
 	TypeInvalidNode uint32 = 0
 	TypeTeeNode     uint32 = 1
 	TypeMeshNode    uint32 = 2
+	TypeAppNode     uint32 = 3
 )
 
 // NodeConfig holds node configuration information
 type NodeConfig struct {
-	NodeID     uint32 `json:"node_id"`
-	RPCAddress string `json:"rpc_address"`
-	Cert       []byte `json:"cert"`
-	Key        []byte `json:"key"`
-	TargetCert []byte `json:"target_cert"`
+	NodeID      uint32 `json:"node_id"`
+	RPCAddress  string `json:"rpc_address"`
+	Cert        []byte `json:"cert"`
+	Key         []byte `json:"key"`
+	TargetCert  []byte `json:"target_cert"`
+	AppNodeAddr string `json:"app_node_addr"`
+	AppNodeCert []byte `json:"app_node_cert"`
 }
 
 // Client pulls configuration from server (without TLS)
@@ -86,24 +89,30 @@ func (c *Client) fetchFromServer(ctx context.Context) (*NodeConfig, error) {
 	}
 
 	// Find TEE node
-	var teeNode *nmpb.Peer
+	var teeNode, appNode *nmpb.Peer
 	for _, peer := range peers.Peers {
-		if peer.Type == TypeTeeNode {
+		if peer.Type == TypeAppNode {
+			appNode = peer
+		} else if peer.Type == TypeTeeNode {
 			teeNode = peer
+		}
+		if teeNode != nil && appNode != nil {
 			break
 		}
 	}
 
-	if teeNode == nil {
-		return nil, fmt.Errorf("no TEE node found")
+	if teeNode == nil && appNode == nil {
+		return nil, fmt.Errorf("no TEE or App node found")
 	}
 
 	config := &NodeConfig{
-		NodeID:     nodeInfo.NodeId,
-		RPCAddress: teeNode.RpcAddress,
-		Cert:       nodeInfo.Cert,
-		Key:        nodeInfo.Key,
-		TargetCert: teeNode.Cert,
+		NodeID:      nodeInfo.NodeId,
+		Cert:        nodeInfo.Cert,
+		Key:         nodeInfo.Key,
+		TargetCert:  teeNode.Cert,
+		RPCAddress:  teeNode.RpcAddress,
+		AppNodeAddr: appNode.RpcAddress,
+		AppNodeCert: appNode.Cert,
 	}
 
 	fmt.Printf("Retrieved config from server, node ID: %d\n", config.NodeID)

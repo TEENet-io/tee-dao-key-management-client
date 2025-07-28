@@ -15,50 +15,49 @@ import { Client } from './client';
 import { Protocol, Curve } from './types';
 
 async function main() {
-  // Use correct gRPC address format: host:port
-  const configServerAddr = 'localhost:50052';  // Config server address
+  // Configuration
+  const configServerAddr = 'localhost:50052'; // TEE config server address
+  
+  console.log('=== TEE DAO Key Management Client with AppID Service Integration ===');
+
+  // Create client
   const client = new Client(configServerAddr);
 
   try {
-    console.log('Initializing client...');
     await client.init();
+    console.log(`Client connected, Node ID: ${client.getNodeId()}`);
 
-    // 3. Execute signing (client now only supports signing)
-    // Note: In a real scenario, you would get the public key from elsewhere (e.g., DKG service)
-    const publicKey = new TextEncoder().encode('example-public-key-from-dkg-service'); // Placeholder
-    const message = new TextEncoder().encode('Hello, TEE DAO!');
+    // Example: Get public key by app ID
+    console.log('\n1. Get public key by app ID');
+    const appID = '800d7bbfd4c8dfb1822555ae37b8c6e5'; // Replace with actual app ID
     
-    console.log('Signing message...');
-    const signature = await client.sign(message, publicKey, Protocol.ECDSA, Curve.ED25519);
-    console.log(`Signing successful!`);
-    console.log(`Message: ${new TextDecoder().decode(message)}`);
-    console.log(`Signature: ${Buffer.from(signature).toString('hex')}`);
+    try {
+      const { publickey, protocol, curve } = await client.getPublicKeyByAppID(appID);
+      console.log(`Public key for app ID ${appID}:`);
+      console.log(`  - Protocol: ${protocol}`);
+      console.log(`  - Curve: ${curve}`);
+      console.log(`  - Public Key: ${publickey}`);
+    } catch (error) {
+      console.error(`Failed to get public key by app ID: ${error}`);
+    }
 
-    console.log('Node ID:', client.getNodeId());
+    // Example: Sign with app ID
+    console.log('\n2. Sign message with app ID');
+    const message = new TextEncoder().encode('Hello from AppID Service!');
+
+    try {
+      const signature = await client.signWithAppID(message, appID);
+      console.log('Signing with app ID successful!');
+      console.log(`Message: ${new TextDecoder().decode(message)}`);
+      console.log(`Signature: ${Buffer.from(signature).toString('hex')}`);
+    } catch (error) {
+      console.error(`Signing with app ID failed: ${error}`);
+    }
+
+    console.log('\n=== Example completed ===');
 
   } catch (error) {
-    console.error('Error:', error);
-  } finally {
-    console.log('Closing client...');
-    await client.close();
-  }
-}
-
-async function customTimeoutExample() {
-  const client = new Client('localhost:50052');
-
-  client.setTimeout(60000);
-
-  try {
-    await client.init();
-    
-    const publicKey = new TextEncoder().encode('example-public-key');
-    const message = new TextEncoder().encode('Custom timeout message');
-    const signature = await client.sign(message, publicKey, Protocol.SCHNORR, Curve.SECP256K1);
-    console.log('Custom timeout signing completed');
-    
-  } catch (error) {
-    console.error('Custom timeout example error:', error);
+    console.error('Client initialization failed:', error);
   } finally {
     await client.close();
   }
