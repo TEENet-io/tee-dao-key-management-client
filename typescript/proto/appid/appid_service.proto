@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package appid;
+
+option go_package = "./;appid";
+
+// AppID service for getting public key information by app ID
+service AppIDService {
+  // Get public key information by app ID
+  rpc GetPublicKeyByAppID(GetPublicKeyByAppIDRequest) returns (GetPublicKeyByAppIDResponse);
+}
+
+// Request message for getting public key by app ID
+message GetPublicKeyByAppIDRequest {
+  string app_id = 1;
+}
+
+// Response message for getting public key by app ID
+message GetPublicKeyByAppIDResponse {
+  string publickey = 1;
+  string protocol = 2;
+  string curve = 3;
+}
+
+// Error response structure
+message ErrorResponse {
+  string code = 1;
+  string message = 2;
+}

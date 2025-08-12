@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option go_package = "./proto"; 
+
+// UserTask service for user operations in the key management system.
+service UserTask {
+    rpc Sign(SignRequest) returns (SignResponse) {}
+}
+
+message SignRequest {
+    uint32 from = 1; // sender id
+    bytes public_key_info = 2; // public key
+    bytes msg = 3; // message
+    uint32 protocol = 4; // 1: ECDSA, 2: Schnorr
+    uint32 curve = 5; // 1: ED25519, 2: SECP256K1, 3: SECP256R1, 4: P256
+}
+
+message SignResponse {
+    bytes signature = 1;
+    bool success = 2; // success flag
+    string error = 3; // error message
+}

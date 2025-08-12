@@ -1,0 +1,81 @@
+# Go binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Mock server binaries
+mock-server/dao-server
+mock-server/mock-app-node
+mock-server/mock-config-server
+mock-server/example-program
+
+# Go test binary, built with `go test -c`
+*.test
+
+# Go coverage tool output, specifically when used with LiteIDE
+*.out
+
+# Go dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# TypeScript/Node.js
+typescript/node_modules/
+typescript/dist/
+typescript/.npm
+typescript/*.tsbuildinfo
+typescript/.nyc_output/
+typescript/coverage/
+typescript/*.log
+typescript/npm-debug.log*
+typescript/yarn-debug.log*
+typescript/yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Certificate and key files (security)
+*.pem
+*.key
+*.crt
+*.cert
+certificates/
+keys/
+*.srl
+
+# Claude development notes
+CLAUDE.md

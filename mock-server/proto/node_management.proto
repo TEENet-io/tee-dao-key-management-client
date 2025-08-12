@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package tee_node_management;
+
+option go_package = "./proto";
+
+// CLI-RPC service for node information and peer management
+service CLIRPCService {
+    rpc GetNodeInfo(GetNodeInfoRequest) returns (GetNodeInfoResponse);
+    rpc GetPeerNode(GetPeerNodeRequest) returns (GetPeerNodeResponse);
+}
+
+// Node info service requests and responses
+message GetNodeInfoRequest {}
+  
+message GetNodeInfoResponse {
+    uint32 node_id = 1;
+    string rpc_address = 2;
+    bytes cert = 3;
+    bytes key = 4;
+}
+
+message GetPeerNodeRequest {
+    string node_type = 1; // "dao", "mesh", "both", or empty for all
+}
+
+message Peer {
+    uint32 id = 1;
+    string rpc_address = 2;
+    bytes cert = 3;
+    uint32 type = 4; // 1: TEE-DAO node, 2: mesh node, 3: App node
+}
+
+message GetPeerNodeResponse {
+    repeated Peer peers = 1;
+}
