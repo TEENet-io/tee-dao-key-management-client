@@ -38,7 +38,7 @@ func main() {
 
 	// Example: Get public key by app ID
 	fmt.Println("\n1. Get public key by app ID")
-	appID := "xxxxxxx"
+	appID := "secure-messaging-app"
 	publicKey, protocol, curve, err := client.GetPublicKeyByAppID(appID)
 	if err != nil {
 		log.Printf("Failed to get public key by app ID: %v", err)

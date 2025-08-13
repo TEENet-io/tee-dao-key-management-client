@@ -29,7 +29,7 @@ async function main() {
 
     // Example: Get public key by app ID
     console.log('\n1. Get public key by app ID');
-    const appID = 'xxxxxxx'; // Replace with actual app ID
+    const appID = 'secure-messaging-app'; // Replace with actual app ID
     
     try {
       const { publickey, protocol, curve } = await client.getPublicKeyByAppID(appID);

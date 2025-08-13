@@ -40,7 +40,7 @@ The TEENet Signature Tool is a Go-based web application that provides digital si
    ```bash
    export APP_ID="your-app-id-here"
    export TEE_CONFIG_ADDR="localhost:50052"
-   export PORT="8081"
+   export PORT="8080"
    ```
 
 4. **Build and run:**
@@ -51,6 +51,8 @@ The TEENet Signature Tool is a Go-based web application that provides digital si
 
 ### Docker Deployment
 
+#### Build and Run Locally
+
 1. **Build the Docker image:**
    ```bash
    docker build -t teenet-signature-tool .
@@ -60,11 +62,30 @@ The TEENet Signature Tool is a Go-based web application that provides digital si
    ```bash
    docker run -d \
      --name signature-tool \
-     -p 8081:8081 \
+     -p 8080:8080 \
      -e APP_ID="your-app-id-here" \
      -e TEE_CONFIG_ADDR="localhost:50052" \
-     -e PORT="8081" \
+     -e PORT="8080" \
      teenet-signature-tool
+   ```
+
+#### Build and Compress Docker Image
+
+To build and compress the Docker image for distribution:
+
+1. **Use the build script:**
+   ```bash
+   ./build-image.sh
+   ```
+
+2. **The script will:**
+   - Build the Docker image as `teenet-signature-tool:latest`
+   - Compress it to `teenet-signature-tool-latest.tar.gz`
+   - Display file size and usage instructions
+
+3. **To load the compressed image elsewhere:**
+   ```bash
+   docker load < teenet-signature-tool-latest.tar.gz
    ```
 
 ## Configuration
@@ -75,7 +96,7 @@ The TEENet Signature Tool is a Go-based web application that provides digital si
 |----------|-------------|---------|----------|
 | `APP_ID` | Application ID for signature operations | - | Yes |
 | `TEE_CONFIG_ADDR` | TEE configuration server address | `localhost:50052` | No |
-| `PORT` | Web server port | `8081` | No |
+| `PORT` | Web server port | `8080` | No |
 
 ## Usage
 
@@ -83,7 +104,7 @@ The TEENet Signature Tool is a Go-based web application that provides digital si
 
 Once the server is running, access the web interface at:
 ```
-http://localhost:8081
+http://localhost:8080
 ```
 
 The web interface provides the following functions:
@@ -278,6 +299,7 @@ signature-tool/
 ├── go.mod           # Go module file
 ├── go.sum           # Go module checksums
 ├── Dockerfile       # Docker configuration
+├── build-image.sh   # Docker image build and compression script
 └── README.md        # This file
 ```
 

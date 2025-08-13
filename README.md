@@ -13,6 +13,12 @@ A comprehensive testing environment for TEE DAO key management operations, inclu
 - **Mock Config Server** - Provides node discovery and configuration
 - **Mock App Node** - Simulates user management system functionality
 
+### 3. TEENet Signature Tool Example
+- **Web-based Signature Tool** - Interactive web interface and REST API for digital signature operations
+- **Multi-Protocol Support** - ECDSA and Schnorr protocols with ED25519, SECP256K1, and SECP256R1 curves
+- **Signature Verification** - Comprehensive verification capabilities with multiple format support
+- **Docker Ready** - Containerized deployment for easy integration
+
 ## ✨ Mock Server Features
 
 The mock server provides a complete local testing environment with:
@@ -63,6 +69,56 @@ npm run example
 cd mock-server
 ./stop-test-env.sh
 ```
+
+## 🔧 TEENet Signature Tool Example
+
+The signature tool provides a comprehensive web-based interface and REST API for digital signature operations within the TEE DAO ecosystem.
+
+### Features
+
+- **Web Interface**: Interactive HTML interface for signature operations
+- **REST API**: Complete API endpoints for programmatic access
+- **Multi-Protocol Support**: ECDSA and Schnorr signature protocols
+- **Multiple Curves**: Support for ED25519, SECP256K1, and SECP256R1 curves
+- **Signature Verification**: Comprehensive verification with multiple format support
+- **Docker Ready**: Containerized deployment for easy integration
+
+### Quick Start
+
+**Start the Signature Tool:**
+
+```bash
+cd go/example/signature-tool
+go run main.go
+```
+
+The web interface will be available at `http://localhost:8080`
+
+**Docker Deployment:**
+
+```bash
+cd go/example/signature-tool
+docker build -t signature-tool .
+docker run -p 8080:8080 -e TEE_CONFIG_ADDR=host.docker.internal:50052 signature-tool
+```
+
+### API Endpoints
+
+- `GET /api/health` - Health check
+- `POST /api/get-public-key` - Get public key by App ID
+- `POST /api/sign-with-appid` - Sign message using App ID
+- `POST /api/verify-with-appid` - Verify signature using App ID
+- `POST /api/sign` - Advanced signing with explicit protocol/curve
+- `POST /api/verify` - Advanced verification with explicit protocol/curve
+
+### Configuration
+
+Environment variables:
+- `APP_ID`: Application ID for signature operations
+- `TEE_CONFIG_ADDR`: TEE configuration server address (default: localhost:50052)
+- `PORT`: Web server port (default: 8080)
+
+For detailed documentation, see [go/example/signature-tool/README.md](go/example/signature-tool/README.md)
 
 ## Features
 
@@ -355,6 +411,11 @@ The clients use gRPC with Protocol Buffers for communication:
 │   │   ├── task/          # Task client for signing
 │   │   └── usermgmt/      # User management client
 │   ├── example/           # Go examples
+│   │   ├── main.go        # Basic client example
+│   │   └── signature-tool/ # Web-based signature tool
+│   │       ├── main.go    # Signature tool web application
+│   │       ├── README.md  # Signature tool documentation
+│   │       └── Dockerfile # Docker configuration
 │   └── proto/             # Generated Go protobuf files
 ├── typescript/            # TypeScript client implementation
 │   ├── src/               # TypeScript source code
@@ -382,6 +443,7 @@ The clients use gRPC with Protocol Buffers for communication:
 
 - **Go Client**: See [go/example/main.go](go/example/main.go)
 - **TypeScript Client**: See [typescript/src/example.ts](typescript/src/example.ts)
+- **TEENet Signature Tool Example**: See [go/example/signature-tool/](go/example/signature-tool/) for web-based signature operations
 - **Mock Server**: See [mock-server/README.md](mock-server/README.md) for detailed documentation
 
 ### Complete Testing Workflow
