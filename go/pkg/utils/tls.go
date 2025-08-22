@@ -11,9 +11,29 @@
 //
 // -----------------------------------------------------------------------------
 
-export { Client } from './client';
-export { ConfigClient } from './config-client';
-export { TaskClient } from './task-client';
-export { AppIDClient } from './appid-client';
-export { VotingClient } from './voting-client';
-export * from './types';
+// Package utils provides utility functions for TEE client operations
+package utils
+
+import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+)
+
+// CreateTLSConfig creates TLS configuration for TEE server
+func CreateTLSConfig(cert, key, targetCert []byte) (*tls.Config, error) {
+	certificate, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse client certificate: %w", err)
+	}
+
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(targetCert) {
+		return nil, fmt.Errorf("failed to parse TEE server certificate")
+	}
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{certificate},
+		RootCAs:      caPool,
+	}, nil
+}

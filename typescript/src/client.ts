@@ -11,31 +11,65 @@
 //
 // -----------------------------------------------------------------------------
 
-import { NodeConfig, ClientOptions, Constants, Protocol, Curve } from './types';
+import { NodeConfig, ClientOptions, Constants, Protocol, Curve, VotingResult, VoteDetail, VotingHandler, VotingRequest, VotingResponse, DeploymentTarget } from './types';
 import { ConfigClient } from './config-client';
 import { TaskClient } from './task-client';
 import { AppIDClient } from './appid-client';
+import { VotingClient } from './voting-client';
 import * as tls from 'tls';
+import * as grpc from '@grpc/grpc-js';
 
 export class Client {
   private configClient: ConfigClient;
   private taskClient: TaskClient | null = null;
   private appIDClient: AppIDClient | null = null;
-  private config: NodeConfig | null = null;
+  private nodeConfig: NodeConfig | null = null;
   private timeout: number;
+  private votingHandler: VotingHandler;
+  private votingServer: grpc.Server | null = null;
 
   constructor(configServerAddress: string, options?: Partial<ClientOptions>) {
     this.configClient = new ConfigClient(configServerAddress);
     this.timeout = options?.timeout || Constants.DEFAULT_CLIENT_TIMEOUT;
+    
+    // Set default voting handler (auto-approve all votes)
+    this.votingHandler = this.createDefaultVotingHandler();
   }
 
-  async init(): Promise<void> {
+  // Create default voting handler that auto-approves all voting requests
+  private createDefaultVotingHandler(): VotingHandler {
+    return async (request: VotingRequest): Promise<VotingResponse> => {
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Auto-approve all voting requests by default
+      console.log(`✅ [DEFAULT] Auto-approving voting request for task: ${request.task_id}`);
+
+      return {
+        success: true,
+        task_id: request.task_id,
+      };
+    };
+  }
+
+  // Set custom voting handler and restart voting service if running
+  setVotingHandler(handler: VotingHandler): void {
+    this.votingHandler = handler;
+
+    // If voting service is already running, restart it with the new handler
+    if (this.votingServer) {
+      console.log('🔄 Restarting voting service with new handler...');
+      this.restartVotingService();
+    }
+  }
+
+  async init(votingHandler?: VotingHandler): Promise<void> {
     // 1. Fetch configuration
-    const config = await this.configClient.getConfig(this.timeout);
-    this.config = config;
+    const nodeConfig = await this.configClient.getConfig(this.timeout);
+    this.nodeConfig = nodeConfig;
 
     // 2. Create task client
-    this.taskClient = new TaskClient(config);
+    this.taskClient = new TaskClient(nodeConfig);
     
     // 3. Create TLS configuration for TEE server
     const teeTLSConfig = this.createTEETLSConfig();
@@ -44,7 +78,7 @@ export class Client {
     await this.taskClient.connect(this.timeout);
 
     // 5. Create AppID client
-    this.appIDClient = new AppIDClient(config.appNodeAddr);
+    this.appIDClient = new AppIDClient(nodeConfig.appNodeAddr);
     
     // 6. Create TLS configuration for App node
     const appTLSConfig = this.createAppTLSConfig();
@@ -52,10 +86,69 @@ export class Client {
     // 7. Connect to user management system
     await this.appIDClient.connect(appTLSConfig);
 
-    console.log(`Client initialized successfully, node ID: ${config.nodeId}`);
+    // 8. Set voting handler and auto-start voting service
+    if (votingHandler) {
+      this.votingHandler = votingHandler;
+      console.log('🗳️  Using custom voting handler provided in init()');
+    } else {
+      console.log('🗳️  Using default auto-approve voting handler');
+    }
+
+    try {
+      this.votingServer = await VotingClient.startVotingService(this.votingHandler);
+      console.log('🗳️  Voting service auto-started during initialization');
+    } catch (error) {
+      console.warn(`⚠️  Warning: Failed to start voting service: ${error}`);
+      // Don't fail initialization if voting service fails to start
+    }
+
+    console.log(`✅ Client initialized successfully, node ID: ${nodeConfig.nodeId}`);
+  }
+
+  private async restartVotingService(): Promise<void> {
+    if (this.votingServer) {
+      // Quick shutdown without waiting
+      setImmediate(() => this.votingServer?.forceShutdown());
+      this.votingServer = null;
+    }
+
+    try {
+      this.votingServer = await VotingClient.startVotingService(this.votingHandler);
+    } catch (error) {
+      console.warn(`⚠️  Warning: Failed to restart voting service: ${error}`);
+    }
   }
 
   async close(): Promise<void> {
+    console.log('🛑 Stopping voting service...');
+    
+    // Gracefully stop voting service
+    if (this.votingServer) {
+      return new Promise<void>((resolve) => {
+        console.log('🔄 Attempting graceful shutdown...');
+        this.votingServer!.tryShutdown(() => {
+          console.log('✅ Voting service stopped gracefully');
+          this.votingServer = null;
+          
+          // Close other clients
+          console.log('🔄 Closing task client...');
+          if (this.taskClient) {
+            this.taskClient.close();
+            this.taskClient = null;
+          }
+          console.log('🔄 Closing appID client...');
+          if (this.appIDClient) {
+            this.appIDClient.close();
+            this.appIDClient = null;
+          }
+          console.log('✅ All clients closed');
+          
+          resolve();
+        });
+      });
+    }
+
+    // If no voting server, just close other clients
     if (this.taskClient) {
       await this.taskClient.close();
       this.taskClient = null;
@@ -66,18 +159,12 @@ export class Client {
     }
   }
 
-  async sign(message: Uint8Array, publicKey: Uint8Array, protocol: number, curve: number): Promise<Uint8Array> {
-    if (!this.taskClient) {
-      throw new Error('client not initialized');
-    }
-    return this.taskClient.sign(message, publicKey, protocol, curve, this.timeout);
-  }
 
   getNodeId(): number {
-    if (!this.config) {
+    if (!this.nodeConfig) {
       return 0;
     }
-    return this.config.nodeId;
+    return this.nodeConfig.nodeId;
   }
 
   setTimeout(timeout: number): void {
@@ -93,25 +180,25 @@ export class Client {
 
   // Create TLS configuration for TEE server
   private createTEETLSConfig(): tls.SecureContextOptions {
-    if (!this.config) {
+    if (!this.nodeConfig) {
       throw new Error('config not loaded');
     }
     return {
-      cert: this.config.cert,
-      key: this.config.key,
-      ca: this.config.targetCert,
+      cert: this.nodeConfig.cert,
+      key: this.nodeConfig.key,
+      ca: this.nodeConfig.targetCert,
     };
   }
 
   // Create TLS configuration for App node (user management system)
   private createAppTLSConfig(): tls.SecureContextOptions {
-    if (!this.config) {
+    if (!this.nodeConfig) {
       throw new Error('config not loaded');
     }
     return {
-      cert: this.config.cert,
-      key: this.config.key,
-      ca: this.config.appNodeCert,
+      cert: this.nodeConfig.cert,
+      key: this.nodeConfig.key,
+      ca: this.nodeConfig.appNodeCert,
     };
   }
 
@@ -123,21 +210,6 @@ export class Client {
     return this.appIDClient.getPublicKeyByAppID(appId);
   }
 
-  // Sign with app ID (combines getPublicKeyByAppID and sign)
-  async signWithAppID(message: Uint8Array, appId: string): Promise<Uint8Array> {
-    // Get public key from user management system
-    const {publickey, protocol, curve} = await this.getPublicKeyByAppID(appId);
-    
-    // Parse protocol and curve
-    const protocolNum = this.parseProtocol(protocol);
-    const curveNum = this.parseCurve(curve);
-    
-    // Decode public key from base64
-    const publicKeyBuffer = Buffer.from(publickey, 'base64');
-    
-    // Sign the message
-    return this.sign(message, new Uint8Array(publicKeyBuffer), protocolNum, curveNum);
-  }
 
   // Parse protocol string to number
   private parseProtocol(protocol: string): number {
@@ -165,5 +237,141 @@ export class Client {
         const num = parseInt(curve, 10);
         return isNaN(num) ? Curve.ED25519 : num; // Default to ed25519
     }
+  }
+
+  // Sign with AppID (combines getPublicKeyByAppID and taskClient.sign)
+  async signWithAppID(message: Uint8Array, appId: string): Promise<Uint8Array> {
+    if (!this.taskClient) {
+      throw new Error('client not initialized');
+    }
+
+    // Get public key from user management system
+    const { publickey, protocol, curve } = await this.getPublicKeyByAppID(appId);
+
+    // Parse protocol and curve
+    const protocolNum = this.parseProtocol(protocol);
+    const curveNum = this.parseCurve(curve);
+
+    // Decode public key from base64
+    const publicKeyBuffer = Buffer.from(publickey, 'base64');
+
+    // Sign the message directly through taskClient
+    return this.taskClient.sign(message, new Uint8Array(publicKeyBuffer), protocolNum, curveNum, this.timeout);
+  }
+
+  // VotingSign performs a voting process among specified app IDs and returns detailed results with signature if approved
+  async votingSign(
+    message: Uint8Array,
+    signerAppId: string,
+    targetAppIds: string[],
+    requiredVotes: number
+  ): Promise<VotingResult> {
+    if (targetAppIds.length === 0) {
+      throw new Error('no target app IDs provided');
+    }
+
+    if (requiredVotes <= 0 || requiredVotes > targetAppIds.length) {
+      throw new Error(`invalid required votes: ${requiredVotes} (should be 1-${targetAppIds.length})`);
+    }
+
+    if (!this.appIDClient) {
+      throw new Error('AppID client not initialized');
+    }
+
+    const taskId = `vote_${signerAppId}_${Date.now()}`;
+    console.log(`🗳️  Starting voting process: ${taskId}`);
+    console.log(`👥 Targets: ${JSON.stringify(targetAppIds)}, required votes: ${requiredVotes}/${targetAppIds.length}`);
+
+    // Batch get deployment targets for all target app IDs
+    const deploymentTargets = await this.appIDClient.getDeploymentTargetsForAppIDs(targetAppIds, this.timeout);
+
+    // Send voting requests to all target app IDs concurrently
+    const votePromises = targetAppIds.map(async (targetAppId): Promise<VoteDetail> => {
+      const target = deploymentTargets[targetAppId];
+      if (!target) {
+        console.log(`❌ No deployment target found for ${targetAppId}, skipping`);
+        return {
+          clientId: targetAppId,
+          success: false,
+          response: false,
+          error: 'No deployment target found'
+        };
+      }
+
+      try {
+        const approved = await VotingClient.sendVotingRequestToDeployment(
+          target,
+          target.appID,
+          target.containerIP,
+          taskId,
+          message,
+          requiredVotes,
+          targetAppIds.length,
+          this.timeout
+        );
+
+        return {
+          clientId: targetAppId,
+          success: true,
+          response: approved,
+        };
+      } catch (error) {
+        console.log(`❌ Failed to get vote from ${targetAppId}: ${error}`);
+        return {
+          clientId: targetAppId,
+          success: false,
+          response: false,
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    });
+
+    // Wait for all voting requests to complete
+    const voteDetails = await Promise.all(votePromises);
+
+    // Count successful approvals
+    const approvalCount = voteDetails.filter(detail => detail.success && detail.response).length;
+
+    for (const detail of voteDetails) {
+      if (detail.success && detail.response) {
+        console.log(`✅ Vote approved by ${detail.clientId} (${approvalCount}/${requiredVotes})`);
+      } else if (detail.success && !detail.response) {
+        console.log(`❌ Vote rejected by ${detail.clientId}`);
+      } else {
+        console.log(`❌ Failed to get vote from ${detail.clientId}: ${detail.error}`);
+      }
+    }
+
+    // Create voting result
+    const votingResult: VotingResult = {
+      taskId,
+      totalTargets: targetAppIds.length,
+      successfulVotes: approvalCount,
+      requiredVotes,
+      votingComplete: approvalCount >= requiredVotes,
+      finalResult: '',
+      voteDetails
+    };
+
+    // Check if voting passed
+    if (approvalCount < requiredVotes) {
+      votingResult.finalResult = 'REJECTED';
+      console.log(`❌ Voting failed: only ${approvalCount}/${requiredVotes} approvals received`);
+      throw new Error(`voting failed: only ${approvalCount}/${requiredVotes} approvals received`);
+    }
+
+    // Generate signature
+    console.log(`🔐 Generating signature for approved message (${approvalCount}/${requiredVotes} votes received)`);
+    try {
+      const signature = await this.signWithAppID(message, signerAppId);
+      votingResult.finalResult = 'APPROVED';
+      votingResult.signature = signature;
+    } catch (error) {
+      votingResult.finalResult = 'SIGNATURE_FAILED';
+      throw new Error(`failed to generate signature: ${error}`);
+    }
+
+    console.log('✅ Voting and signing completed successfully');
+    return votingResult;
   }
 }

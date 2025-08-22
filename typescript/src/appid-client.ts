@@ -15,6 +15,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import * as path from 'path';
 import * as tls from 'tls';
+import { DeploymentTarget } from './types';
 
 export interface GetPublicKeyByAppIDRequest {
   app_id: string;
@@ -26,10 +27,35 @@ export interface GetPublicKeyByAppIDResponse {
   curve: string;
 }
 
+export interface GetDeploymentAddressesRequest {
+  app_ids: string[];
+}
+
+export interface DeploymentInfo {
+  app_id: string;
+  project_name: string;
+  deployment_host: string;
+  container_ip: string;
+  service_port: number;
+  deployment_client_address: string;
+  deployed_at: number;
+  deployment_type: string;
+}
+
+export interface GetDeploymentAddressesResponse {
+  deployments: { [appId: string]: DeploymentInfo };
+  not_found: string[];
+}
+
 interface AppIDServiceClient {
   GetPublicKeyByAppID(
     request: GetPublicKeyByAppIDRequest,
     callback: (error: grpc.ServiceError | null, response?: GetPublicKeyByAppIDResponse) => void
+  ): grpc.ClientUnaryCall;
+  
+  GetDeploymentAddresses(
+    request: GetDeploymentAddressesRequest,
+    callback: (error: grpc.ServiceError | null, response?: GetDeploymentAddressesResponse) => void
   ): grpc.ClientUnaryCall;
 }
 
@@ -101,6 +127,62 @@ export class AppIDClient {
         }
       });
     });
+  }
+
+  async getDeploymentAddresses(appIds: string[], timeout: number): Promise<{ deployments: { [appId: string]: DeploymentInfo }, notFound: string[] }> {
+    if (!this.client) {
+      throw new Error('client not connected');
+    }
+
+    return new Promise((resolve, reject) => {
+      const request: GetDeploymentAddressesRequest = { app_ids: appIds };
+      
+      this.client!.GetDeploymentAddresses(request, (error: grpc.ServiceError | null, response?: GetDeploymentAddressesResponse) => {
+        if (error) {
+          reject(new Error(`failed to get deployment addresses: ${error.message}`));
+        } else if (response) {
+          resolve({
+            deployments: response.deployments,
+            notFound: response.not_found
+          });
+        } else {
+          reject(new Error('no response received'));
+        }
+      });
+    });
+  }
+
+  async getDeploymentTargetsForAppIDs(appIds: string[], timeout: number): Promise<{ [appId: string]: DeploymentTarget }> {
+    const { deployments, notFound } = await this.getDeploymentAddresses(appIds, timeout);
+    
+    const result: { [appId: string]: DeploymentTarget } = {};
+    
+    // Process successful deployments
+    for (const [appId, deployment] of Object.entries(deployments)) {
+      if (!deployment.container_ip || !deployment.deployment_client_address) {
+        console.warn(`⚠️  App ID ${appId} missing container IP or deployment client address`);
+        continue;
+      }
+      
+      // Parse the deployment client address to extract host and port
+      const addressParts = deployment.deployment_client_address.split(':');
+      const address = addressParts[0];
+      const port = addressParts.length > 1 ? parseInt(addressParts[1], 10) : 50053; // Default voting port
+      
+      result[appId] = {
+        appID: appId,
+        address,
+        port,
+        containerIP: deployment.container_ip
+      };
+    }
+    
+    // Log not found app IDs
+    for (const appId of notFound) {
+      console.warn(`⚠️  App ID ${appId} not found or not deployed`);
+    }
+    
+    return result;
   }
 
   close(): void {

@@ -12,7 +12,8 @@
 // -----------------------------------------------------------------------------
 
 import { Client } from './client';
-import { Protocol, Curve } from './types';
+// @ts-ignore
+import * as wtfnode from 'wtfnode';
 
 async function main() {
   // Configuration
@@ -24,8 +25,9 @@ async function main() {
   const client = new Client(configServerAddr);
 
   try {
+    // Initialize client with default voting handler (auto-approve)
     await client.init();
-    console.log(`Client connected, Node ID: ${client.getNodeId()}`);
+    console.log(`Client initialized successfully, Node ID: ${client.getNodeId()}`);
 
     // Example: Get public key by app ID
     console.log('\n1. Get public key by app ID');
@@ -54,12 +56,40 @@ async function main() {
       console.error(`Signing with app ID failed: ${error}`);
     }
 
+    // Example: Multi-party voting signature
+    console.log('\n3. Multi-party voting signature');
+    const targetAppIDs = ['secure-messaging-app', 'secure-messaging-app1', 'secure-messaging-app2'];
+    const requiredVotes = 2;
+    const votingMessage = new TextEncoder().encode('Multi-party signature request test');
+    
+    try {
+      const votingResult = await client.votingSign(votingMessage, appID, targetAppIDs, requiredVotes);
+      console.log('Voting signature successful!');
+      console.log(`Task ID: ${votingResult.taskId}`);
+      console.log(`Votes received: ${votingResult.successfulVotes}/${votingResult.requiredVotes}`);
+      console.log(`Final result: ${votingResult.finalResult}`);
+      if (votingResult.signature) {
+        console.log(`Signature: ${Buffer.from(votingResult.signature).toString('hex')}`);
+      }
+      console.log(`Vote details:`);
+      votingResult.voteDetails.forEach((detail, index) => {
+        console.log(`  ${index + 1}. ${detail.clientId}: ${detail.success ? (detail.response ? 'APPROVED' : 'REJECTED') : 'FAILED'}`);
+        if (detail.error) {
+          console.log(`     Error: ${detail.error}`);
+        }
+      });
+    } catch (error) {
+      console.error(`Voting signature failed: ${error}`);
+    }
+
+
     console.log('\n=== Example completed ===');
 
   } catch (error) {
     console.error('Client initialization failed:', error);
   } finally {
     await client.close();
+    console.log('🏁 Example finished');
   }
 }
 

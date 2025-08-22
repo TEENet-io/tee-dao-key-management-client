@@ -18,6 +18,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -31,6 +33,13 @@ type Client struct {
 	conn       *grpc.ClientConn
 	client     appid.AppIDServiceClient
 	serverAddr string
+}
+
+// DeploymentTarget contains deployment information for voting requests
+type DeploymentTarget struct {
+	AppID                   string
+	ContainerIP             string
+	DeploymentClientAddress string
 }
 
 // NewClient creates a new user management gRPC client
@@ -65,6 +74,14 @@ func (c *Client) Connect(ctx context.Context, tlsConfig *tls.Config) error {
 	return nil
 }
 
+// Close closes the gRPC connection
+func (c *Client) Close() error {
+	if c.conn != nil {
+		return c.conn.Close()
+	}
+	return nil
+}
+
 // GetPublicKeyByAppID retrieves public key by app ID via gRPC
 func (c *Client) GetPublicKeyByAppID(ctx context.Context, appID string) (string, string, string, error) {
 	if c.client == nil {
@@ -83,10 +100,53 @@ func (c *Client) GetPublicKeyByAppID(ctx context.Context, appID string) (string,
 	return resp.Publickey, resp.Protocol, resp.Curve, nil
 }
 
-// Close closes the gRPC connection
-func (c *Client) Close() error {
-	if c.conn != nil {
-		return c.conn.Close()
+// GetDeploymentAddresses retrieves deployment addresses for given app IDs via gRPC
+func (c *Client) GetDeploymentAddresses(ctx context.Context, appIDs []string) (map[string]*appid.DeploymentInfo, []string, error) {
+	if c.client == nil {
+		return nil, nil, fmt.Errorf("client not connected")
 	}
-	return nil
+
+	req := &appid.GetDeploymentAddressesRequest{
+		AppIds: appIDs,
+	}
+
+	resp, err := c.client.GetDeploymentAddresses(ctx, req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get deployment addresses: %w", err)
+	}
+
+	return resp.Deployments, resp.NotFound, nil
+}
+
+// GetDeploymentTargetsForAppIDs gets deployment targets for multiple App IDs in batch
+func (c *Client) GetDeploymentTargetsForAppIDs(appIDs []string, timeout time.Duration) (map[string]*DeploymentTarget, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	deployments, notFound, err := c.GetDeploymentAddresses(ctx, appIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment info: %w", err)
+	}
+
+	result := make(map[string]*DeploymentTarget)
+
+	// Process successful deployments
+	for appID, deployment := range deployments {
+		if deployment.ContainerIp == "" || deployment.DeploymentClientAddress == "" {
+			log.Printf("⚠️  App ID %s missing container IP or deployment client address", appID)
+			continue
+		}
+		result[appID] = &DeploymentTarget{
+			AppID:                   appID,
+			ContainerIP:             deployment.ContainerIp,
+			DeploymentClientAddress: deployment.DeploymentClientAddress,
+		}
+	}
+
+	// Log not found app IDs
+	if len(notFound) > 0 {
+		log.Printf("⚠️  App IDs not found or not deployed: %v", notFound)
+	}
+
+	return result, nil
 }

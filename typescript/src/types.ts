@@ -58,8 +58,57 @@ export const NodeType = {
   APP_NODE: 3,
 } as const;
 
+// VoteDetail contains details of each vote
+export interface VoteDetail {
+  clientId: string;
+  success: boolean;
+  response: boolean;
+  error?: string;
+}
+
+// VotingResult contains the result of a voting process
+export interface VotingResult {
+  taskId: string;
+  totalTargets: number;
+  successfulVotes: number;
+  requiredVotes: number;
+  votingComplete: boolean;
+  finalResult: string;
+  voteDetails: VoteDetail[];
+  signature?: Uint8Array;
+}
+
+// VotingRequest for voting system
+export interface VotingRequest {
+  task_id: string;
+  message: Uint8Array;
+  required_votes: number;
+  total_participants: number;
+  app_id?: string;
+  target_container_ip?: string;
+}
+
+// VotingResponse for voting system
+export interface VotingResponse {
+  success: boolean;
+  task_id: string;
+  error?: string;
+}
+
+// Voting handler function type
+export type VotingHandler = (request: VotingRequest) => Promise<VotingResponse>;
+
+// Deployment target information
+export interface DeploymentTarget {
+  appID: string;
+  address: string;
+  port: number;
+  containerIP: string;
+}
+
 export const Constants = {
   DEFAULT_CLIENT_TIMEOUT: 30000,
   DEFAULT_CONFIG_TIMEOUT: 10000,
   DEFAULT_TASK_TIMEOUT: 30000,
+  DEFAULT_VOTING_PORT: 50053,
 } as const;

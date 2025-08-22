@@ -18,7 +18,8 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "rimraf": "^6.0.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "wtfnode": "^0.10.0"
   },
   "engines": {
     "node": ">=18.0.0"

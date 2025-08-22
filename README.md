@@ -13,11 +13,12 @@ A comprehensive testing environment for TEE DAO key management operations, inclu
 - **Mock Config Server** - Provides node discovery and configuration
 - **Mock App Node** - Simulates user management system functionality
 
-### 3. TEENet Signature Tool Example
-- **Web-based Signature Tool** - Interactive web interface and REST API for digital signature operations
+### 3. Example Applications
+- **TEENet Signature Tool** - Unified web application with modular architecture for digital signatures and multi-party voting
 - **Multi-Protocol Support** - ECDSA and Schnorr protocols with ED25519, SECP256K1, and SECP256R1 curves
-- **Signature Verification** - Comprehensive verification capabilities with multiple format support
-- **Docker Ready** - Containerized deployment for easy integration
+- **Multi-Party Voting** - Distributed voting signatures with M-of-N threshold consensus
+- **Signature Verification** - Comprehensive verification for both single-party and multi-party signatures
+- **Docker Ready** - Single containerized deployment using remote dependencies
 
 ## ✨ Mock Server Features
 
@@ -70,26 +71,30 @@ cd mock-server
 ./stop-test-env.sh
 ```
 
-## 🔧 TEENet Signature Tool Example
+## 🔧 Example Applications
 
-The signature tool provides a comprehensive web-based interface and REST API for digital signature operations within the TEE DAO ecosystem.
+### TEENet Signature Tool
 
-### Features
+A unified web application providing comprehensive digital signature and multi-party voting capabilities with modular architecture.
 
-- **Web Interface**: Interactive HTML interface for signature operations
-- **REST API**: Complete API endpoints for programmatic access
+#### Features
+
+- **Unified Web Interface**: Single application for both signature operations and multi-party voting
+- **Modular Architecture**: Clean separation of concerns with main.go, types.go, crypto.go, server.go, voting.go
+- **Multi-Party Voting**: Distributed voting signatures with M-of-N threshold consensus
+- **Single & Multi-Party Verification**: Verify both traditional signatures and voting signatures
 - **Multi-Protocol Support**: ECDSA and Schnorr signature protocols
 - **Multiple Curves**: Support for ED25519, SECP256K1, and SECP256R1 curves
-- **Signature Verification**: Comprehensive verification with multiple format support
-- **Docker Ready**: Containerized deployment for easy integration
+- **Remote Dependencies**: Uses published GitHub packages, no local dependencies required
+- **Docker Ready**: Single Dockerfile for containerized deployment
 
-### Quick Start
+#### Quick Start
 
 **Start the Signature Tool:**
 
 ```bash
 cd go/example/signature-tool
-go run main.go
+go run .
 ```
 
 The web interface will be available at `http://localhost:8080`
@@ -98,27 +103,90 @@ The web interface will be available at `http://localhost:8080`
 
 ```bash
 cd go/example/signature-tool
-docker build -t signature-tool .
-docker run -p 8080:8080 -e TEE_CONFIG_ADDR=host.docker.internal:50052 signature-tool
+docker build -t teenet-signature-tool .
+docker run -p 8080:8080 \
+  -e APP_ID=your-app-id \
+  -e TEE_CONFIG_ADDR=host.docker.internal:50052 \
+  teenet-signature-tool
 ```
 
-### API Endpoints
+#### API Endpoints
 
 - `GET /api/health` - Health check
+- `GET /api/config` - Get application configuration
 - `POST /api/get-public-key` - Get public key by App ID
 - `POST /api/sign-with-appid` - Sign message using App ID
 - `POST /api/verify-with-appid` - Verify signature using App ID
-- `POST /api/sign` - Advanced signing with explicit protocol/curve
-- `POST /api/verify` - Advanced verification with explicit protocol/curve
+- `POST /api/vote` - Initiate multi-party voting signature
 
-### Configuration
+#### Configuration
 
 Environment variables:
-- `APP_ID`: Application ID for signature operations
+- `APP_ID`: Application ID for signature operations (required)
 - `TEE_CONFIG_ADDR`: TEE configuration server address (default: localhost:50052)
 - `PORT`: Web server port (default: 8080)
+- `FRONTEND_PATH`: Frontend files path (default: ./frontend)
 
 For detailed documentation, see [go/example/signature-tool/README.md](go/example/signature-tool/README.md)
+
+### Multi-Party Voting Workflow
+
+The TEE DAO Key Management Client includes a sophisticated multi-party voting system that enables M-of-N threshold consensus for cryptographic operations:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Application   │    │ TEE DAO Client  │    │   TEE Network   │
+│                 │    │                 │    │                 │
+└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
+          │                      │                      │
+          │ 1. Call VotingSign   │                      │
+          │ Method               │                      │
+          ├─────────────────────►│                      │
+          │ - Message to sign    │                      │
+          │ - Target App IDs     │                      │
+          │ - Required votes     │                      │
+          │                      │                      │
+          │                      │ 2. Start VotingSign │
+          │                      │ Process              │
+          │                      ├──────────────────────┤
+          │                      │                      │
+          │                      │ 3. Concurrent Vote   │
+          │                      │ Requests             │
+          │                      │                      ├─► App ID 1
+          │                      │                      │
+          │                      │                      ├─► App ID 2
+          │                      │                      │
+          │                      │                      ├─► App ID N
+          │                      │                      │
+          │                      │ 4. Collect ALL       │
+          │                      │ Responses            │
+          │                      │ (No early exit)      │
+          │                      │◄─────────────────────┤◄─ Vote Results
+          │                      │                      │
+          │                      │ 5. Evaluate Results  │
+          │                      │ - Count approvals    │
+          │                      │ - Check threshold    │
+          │                      │                      │
+          │                      │ 6. Generate Signature│
+          │                      │ (If approved)        │
+          │                      ├─────────────────────►│
+          │                      │ SignWithAppID()      │
+          │                      │◄─────────────────────┤
+          │ 7. Return Results    │                      │
+          │ - Task ID           │                      │
+          │ - Vote details      │                      │
+          │ - Final signature   │                      │
+          │◄─────────────────────┤                      │
+          │                      │                      │
+```
+
+**Key Features:**
+- **M-of-N Threshold**: Configurable voting requirements (e.g., 2-of-3, 3-of-5)
+- **Concurrent Processing**: Parallel voting requests to all target nodes
+- **Complete Collection**: Waits for all responses before proceeding
+- **Detailed Tracking**: Records individual vote status and errors
+- **Automatic Signing**: Generates cryptographic signature upon approval
+- **Real-time UI**: Dynamic updates showing vote progress and results
 
 ## Features
 
@@ -155,8 +223,8 @@ func main() {
     client := client.NewClient("localhost:50052")
     defer client.Close()
 
-    // Initialize client (fetch config + establish TLS connection)
-    if err := client.Init(); err != nil {
+    // Initialize client with voting handler (fetch config + establish TLS connection)
+    if err := client.Init(nil); err != nil { // nil uses default auto-approve voting handler
         log.Fatalf("Initialization failed: %v", err)
     }
 
@@ -185,7 +253,40 @@ func main() {
         fmt.Printf("Signature: %x\n", signature)
     }
 
-    // Example 3: Traditional signing with explicit protocol and curve
+    // Example 3: Multi-party voting signature
+    targetAppIDs := []string{"secure-messaging-app", "financial-trading-platform", "digital-identity-service"}
+    requiredVotes := 2
+    votingMessage := []byte("Multi-party signature request")
+    
+    votingResult, err := client.VotingSign(votingMessage, appID, targetAppIDs, requiredVotes)
+    if err != nil {
+        log.Printf("Voting signature failed: %v", err)
+    } else {
+        fmt.Printf("Voting signature successful!\n")
+        fmt.Printf("Task ID: %s\n", votingResult.TaskID)
+        fmt.Printf("Votes received: %d/%d\n", votingResult.SuccessfulVotes, votingResult.RequiredVotes)
+        fmt.Printf("Final result: %s\n", votingResult.FinalResult)
+        if votingResult.Signature != nil {
+            fmt.Printf("Signature: %x\n", votingResult.Signature)
+        }
+        
+        // Print detailed vote results
+        fmt.Printf("Vote details:\n")
+        for i, detail := range votingResult.VoteDetails {
+            status := "FAILED"
+            if detail.Success && detail.Response {
+                status = "APPROVED"
+            } else if detail.Success && !detail.Response {
+                status = "REJECTED"
+            }
+            fmt.Printf("  %d. %s: %s\n", i+1, detail.ClientID, status)
+            if detail.Error != "" {
+                fmt.Printf("     Error: %s\n", detail.Error)
+            }
+        }
+    }
+
+    // Example 4: Traditional signing with explicit protocol and curve
     publicKeyBytes := []byte("example-public-key-from-dkg-service") // From external DKG service
     message2 := []byte("Hello, TEE DAO!")
     
@@ -252,7 +353,35 @@ async function main() {
       console.error(`Signing with app ID failed: ${error}`);
     }
 
-    // Example 3: Traditional signing with explicit protocol and curve
+    // Example 3: Multi-party voting signature
+    const targetAppIDs = ['secure-messaging-app', 'financial-trading-platform', 'digital-identity-service'];
+    const requiredVotes = 2;
+    const votingMessage = new TextEncoder().encode('Multi-party signature request');
+    
+    try {
+      const votingResult = await client.votingSign(votingMessage, appID, targetAppIDs, requiredVotes);
+      console.log('Voting signature successful!');
+      console.log(`Task ID: ${votingResult.taskId}`);
+      console.log(`Votes received: ${votingResult.successfulVotes}/${votingResult.requiredVotes}`);
+      console.log(`Final result: ${votingResult.finalResult}`);
+      if (votingResult.signature) {
+        console.log(`Signature: ${Buffer.from(votingResult.signature).toString('hex')}`);
+      }
+      
+      // Print detailed vote results
+      console.log(`Vote details:`);
+      votingResult.voteDetails.forEach((detail, index) => {
+        const status = detail.success ? (detail.response ? 'APPROVED' : 'REJECTED') : 'FAILED';
+        console.log(`  ${index + 1}. ${detail.clientId}: ${status}`);
+        if (detail.error) {
+          console.log(`     Error: ${detail.error}`);
+        }
+      });
+    } catch (error) {
+      console.error(`Voting signature failed: ${error}`);
+    }
+
+    // Example 4: Traditional signing with explicit protocol and curve
     const publicKey = new TextEncoder().encode('example-public-key-from-dkg-service'); // From external DKG service
     const message2 = new TextEncoder().encode('Hello, TEE DAO!');
     
@@ -318,6 +447,16 @@ signature, err := client.SignWithAppID(message, appID)
 **TypeScript:**
 ```typescript
 const signature = await client.signWithAppID(message, appId)
+```
+
+**Multi-Party Voting Signature:**
+```go
+votingResult, err := client.VotingSign(message, signerAppID, targetAppIDs, requiredVotes)
+```
+
+**TypeScript:**
+```typescript
+const votingResult = await client.votingSign(message, signerAppId, targetAppIds, requiredVotes)
 ```
 
 ### Traditional Message Signing
@@ -409,13 +548,16 @@ The clients use gRPC with Protocol Buffers for communication:
 │   │   ├── config/        # Configuration client
 │   │   ├── constants/     # Protocol and curve constants
 │   │   ├── task/          # Task client for signing
-│   │   └── usermgmt/      # User management client
+│   │   ├── usermgmt/      # User management client
+│   │   ├── utils/         # Utility functions
+│   │   └── voting/        # Voting service
 │   ├── example/           # Go examples
 │   │   ├── main.go        # Basic client example
-│   │   └── signature-tool/ # Web-based signature tool
-│   │       ├── main.go    # Signature tool web application
-│   │       ├── README.md  # Signature tool documentation
-│   │       └── Dockerfile # Docker configuration
+│   │   ├── signature-tool/ # Web-based signature tool
+│   │   │   ├── main.go    # Signature tool web application
+│   │   │   ├── frontend/  # Frontend files (HTML/CSS/JS)
+│   │   │   ├── README.md  # Signature tool documentation
+│   │   │   └── Dockerfile # Docker configuration
 │   └── proto/             # Generated Go protobuf files
 ├── typescript/            # TypeScript client implementation
 │   ├── src/               # TypeScript source code
@@ -443,7 +585,7 @@ The clients use gRPC with Protocol Buffers for communication:
 
 - **Go Client**: See [go/example/main.go](go/example/main.go)
 - **TypeScript Client**: See [typescript/src/example.ts](typescript/src/example.ts)
-- **TEENet Signature Tool Example**: See [go/example/signature-tool/](go/example/signature-tool/) for web-based signature operations
+- **TEENet Signature Tool**: See [go/example/signature-tool/](go/example/signature-tool/) for web-based signature operations
 - **Mock Server**: See [mock-server/README.md](mock-server/README.md) for detailed documentation
 
 ### Complete Testing Workflow

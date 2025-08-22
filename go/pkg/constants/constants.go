@@ -18,13 +18,13 @@ import "time"
 // Timeout constants for client operations
 const (
 	// DefaultClientTimeout is the default timeout for main client operations (DKG, Sign, Resharing)
-	DefaultClientTimeout = 30 * time.Second
+	DefaultClientTimeout = 10 * time.Second
 
 	// DefaultConfigTimeout is the default timeout for configuration operations
 	DefaultConfigTimeout = 10 * time.Second
 
 	// DefaultTaskTimeout is the default timeout for task client operations
-	DefaultTaskTimeout = 30 * time.Second
+	DefaultTaskTimeout = 10 * time.Second
 )
 
 // Protocol constants

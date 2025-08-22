@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+option go_package = "github.com/TEENet-io/tee-dao-key-management-client/go/proto/voting";
+
+// VotingService handles distributed voting between deployment clients
+service VotingService {
+    // Voting initiates a new voting process
+    rpc Voting(VotingRequest) returns (VotingResponse) {}
+}
+
+// VotingRequest contains details for a new voting task
+message VotingRequest {
+    string task_id = 1;                    // Unique task identifier
+    bytes message = 2;                     // Message/data to be signed
+    uint32 required_votes = 3;             // m in m-of-n
+    uint32 total_participants = 4;         // n in m-of-n
+    string app_id = 5;                     // Application ID
+    string target_container_ip = 6;        // Target container IP for this specific request
+}
+
+message VotingResponse {
+    bool success = 1;
+    string task_id = 2;
+    string error = 3;
+}

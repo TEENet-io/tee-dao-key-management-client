@@ -183,7 +183,7 @@ EOF
 main() {
     # Check if running in correct directory
     if [ ! -f "dao-server.go" ] || [ ! -f "mock-config-server.go" ]; then
-        echo "Error: Please run this script in the tee-dao-mock-server directory"
+        echo "Error: Please run this script in the mock-server directory"
         exit 1
     fi
     
