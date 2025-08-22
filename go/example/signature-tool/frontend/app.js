@@ -1,0 +1,295 @@
+// Use dynamically loaded APP_ID from window.FIXED_APP_ID set by index.html
+function getAppId() {
+    return window.FIXED_APP_ID || "default-app-id";
+}
+
+// Dynamic API base path detection - works for both direct access and proxy access
+function getApiBasePath() {
+    const currentPath = window.location.pathname;
+    // If accessed through proxy, keep the current path as base
+    // If accessed directly, use empty base
+    return currentPath.endsWith('/') ? currentPath : currentPath + '/';
+}
+
+async function makeApiCall(endpoint, options = {}) {
+    const basePath = getApiBasePath();
+    const url = basePath + 'api/' + endpoint;
+    return fetch(url, options);
+}
+
+async function getPublicKey() {
+    const resultDiv = document.getElementById('publicKeyResult');
+
+    showResult(resultDiv, 'Getting public key...', 'loading');
+
+    try {
+        const response = await makeApiCall('get-public-key', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ app_id: getAppId() })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            const result = JSON.stringify({
+                app_id: data.app_id,
+                protocol: data.protocol,
+                curve: data.curve,
+                public_key: data.public_key
+            }, null, 2);
+            showResult(resultDiv, result, 'success');
+            
+            // Note: Advanced form elements were removed, no auto-fill needed
+        } else {
+            showResult(resultDiv, 'Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showResult(resultDiv, 'Network error: ' + error.message, 'error');
+    }
+}
+
+async function signWithAppID() {
+    const message = document.getElementById('message1').value.trim();
+    const resultDiv = document.getElementById('signAppIDResult');
+    
+    if (!message) {
+        showResult(resultDiv, 'Please enter a message', 'error');
+        return;
+    }
+
+    showResult(resultDiv, 'Signing message...', 'loading');
+
+    try {
+        const response = await makeApiCall('sign-with-appid', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                app_id: getAppId(),
+                message: message 
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            const result = JSON.stringify({
+                message: data.message,
+                app_id: data.app_id,
+                signature: data.signature
+            }, null, 2);
+            showResult(resultDiv, result, 'success');
+            
+            // Auto-fill verification form if empty
+            if (!document.getElementById('verifyMessage1').value) {
+                document.getElementById('verifyMessage1').value = message;
+                document.getElementById('verifySignature1').value = data.signature;
+            }
+        } else {
+            showResult(resultDiv, 'Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showResult(resultDiv, 'Network error: ' + error.message, 'error');
+    }
+}
+
+
+async function verifyWithAppID() {
+    const message = document.getElementById('verifyMessage1').value.trim();
+    const signature = document.getElementById('verifySignature1').value.trim();
+    const resultDiv = document.getElementById('verifyAppIDResult');
+    
+    if (!message || !signature) {
+        showResult(resultDiv, 'Please enter message and signature', 'error');
+        return;
+    }
+
+    showResult(resultDiv, 'Verifying signature...', 'loading');
+
+    try {
+        const response = await makeApiCall('verify-with-appid', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                app_id: getAppId(),
+                message: message,
+                signature: signature
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            const result = JSON.stringify({
+                valid: data.valid,
+                message: data.message,
+                app_id: data.app_id,
+                public_key: data.public_key,
+                protocol: data.protocol,
+                curve: data.curve,
+                verification_result: data.valid ? '✅ Valid signature' : '❌ Invalid signature'
+            }, null, 2);
+            showResult(resultDiv, result, data.valid ? 'success' : 'error');
+        } else {
+            showResult(resultDiv, 'Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showResult(resultDiv, 'Network error: ' + error.message, 'error');
+    }
+}
+
+// Voting functionality
+async function initiateVoting() {
+    const message = document.getElementById('votingMessage').value.trim();
+    const targetAppIds = document.getElementById('targetAppIds').value.trim();
+    const requiredVotes = parseInt(document.getElementById('requiredVotes').value);
+    const resultDiv = document.getElementById('votingResult');
+    
+    if (!message || !targetAppIds) {
+        showResult(resultDiv, 'Please fill in all required fields', 'error');
+        return;
+    }
+    
+
+    // Parse target app IDs (one per line)
+    const targetAppIdArray = targetAppIds.split('\n').map(id => id.trim()).filter(id => id.length > 0);
+    
+    if (targetAppIdArray.length === 0) {
+        showResult(resultDiv, 'Please enter at least one target App ID', 'error');
+        return;
+    }
+
+    // Update total participants
+    const totalParticipants = targetAppIdArray.length;
+    document.getElementById('totalParticipants').value = totalParticipants;
+    document.getElementById('participantCount').textContent = totalParticipants;
+
+    if (requiredVotes > totalParticipants) {
+        showResult(resultDiv, 'Required votes cannot exceed total participants', 'error');
+        return;
+    }
+
+    showResult(resultDiv, 'Initiating voting round...', 'loading');
+
+    try {
+        const response = await makeApiCall('vote', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                description: message,
+                target_app_ids: targetAppIdArray,
+                required_votes: requiredVotes,
+                total_participants: totalParticipants
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            const result = JSON.stringify({
+                task_id: data.task_id,
+                voting_complete: data.voting_results?.voting_complete,
+                successful_votes: data.voting_results?.successful_votes,
+                required_votes: data.voting_results?.required_votes,
+                total_responses: data.voting_results?.total_responses,
+                final_result: data.voting_results?.final_result,
+                vote_details: data.voting_results?.vote_details || [],
+                signature: data.signature || 'No signature',
+                timestamp: data.timestamp
+            }, null, 2);
+            showResult(resultDiv, result, 'success');
+            
+            // Auto-fill voting verification form if voting was successful
+            if (data.signature) {
+                document.getElementById('verifyVotingMessage').value = message;
+                document.getElementById('verifyVotingSignature').value = data.signature;
+                document.getElementById('verifyVotingAppId').value = getAppId();
+            }
+        } else {
+            showResult(resultDiv, 'Error: ' + data.message, 'error');
+        }
+    } catch (error) {
+        showResult(resultDiv, 'Network error: ' + error.message, 'error');
+    }
+}
+
+// Auto-update participant count when target app IDs change
+function updateParticipantCount() {
+    const targetAppIds = document.getElementById('targetAppIds').value.trim();
+    const targetAppIdArray = targetAppIds.split('\n').map(id => id.trim()).filter(id => id.length > 0);
+    const count = targetAppIdArray.length || 1;
+    
+    document.getElementById('totalParticipants').value = count;
+    document.getElementById('participantCount').textContent = count;
+    
+    // Update required votes if it exceeds participant count
+    const requiredVotesInput = document.getElementById('requiredVotes');
+    if (parseInt(requiredVotesInput.value) > count) {
+        requiredVotesInput.value = count;
+    }
+    requiredVotesInput.max = count;
+}
+
+// Verify voting signature
+async function verifyVotingSignature() {
+    const message = document.getElementById('verifyVotingMessage').value.trim();
+    const signature = document.getElementById('verifyVotingSignature').value.trim();
+    const appId = document.getElementById('verifyVotingAppId').value.trim();
+    const resultDiv = document.getElementById('verifyVotingResult');
+    
+    if (!message || !signature || !appId) {
+        showResult(resultDiv, 'Please fill in all fields', 'error');
+        return;
+    }
+
+    showResult(resultDiv, 'Verifying voting signature...', 'loading');
+
+    try {
+        const response = await makeApiCall('verify-with-appid', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                app_id: appId,
+                message: message,
+                signature: signature
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            const result = JSON.stringify({
+                valid: data.valid,
+                message: data.message,
+                app_id: data.app_id,
+                public_key: data.public_key,
+                protocol: data.protocol,
+                curve: data.curve,
+                verification_result: data.valid ? '✅ Valid voting signature' : '❌ Invalid voting signature',
+                signature_type: 'Multi-party voting signature'
+            }, null, 2);
+            showResult(resultDiv, result, data.valid ? 'success' : 'error');
+        } else {
+            showResult(resultDiv, 'Error: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showResult(resultDiv, 'Network error: ' + error.message, 'error');
+    }
+}
+
+
+function showResult(element, content, type) {
+    element.textContent = content;
+    element.className = 'result ' + type;
+    element.style.display = 'block';
+}

@@ -5,7 +5,7 @@ go 1.24.2
 toolchain go1.24.5
 
 require (
-	github.com/TEENet-io/tee-dao-key-management-client/go v0.0.0-20250728094532-f766b4801e94
+	github.com/TEENet-io/tee-dao-key-management-client/go v0.0.0-20250822080942-a7730b0b7773
 	github.com/gin-gonic/gin v1.9.1
 )
 

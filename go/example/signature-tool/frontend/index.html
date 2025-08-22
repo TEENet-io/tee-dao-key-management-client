@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEENet Signature Tool</title>
+    <script>
+        // Set CSS path dynamically based on current URL
+        (function() {
+            const currentPath = window.location.pathname;
+            const cssPath = currentPath.endsWith('/') ? currentPath + 'styles.css' : currentPath + '/styles.css';
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = cssPath;
+            document.head.appendChild(link);
+        })();
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 TEENet Signature Tool</h1>
+        <div style="text-align: center; margin-bottom: 30px; padding: 10px; background-color: #f0f8ff; border-radius: 5px; border-left: 4px solid #007cba;">
+            <strong>App ID:</strong> <code id="appId" style="background-color: #e8e8e8; padding: 2px 6px; border-radius: 3px;">Loading...</code>
+        </div>
+        
+        <div class="flex-container">
+            <div class="flex-item">
+                <div class="section">
+                    <h2>🔐 Sign Message</h2>
+                    <div class="form-group">
+                        <label for="message1">Message to Sign:</label>
+                        <textarea id="message1" rows="3" placeholder="Enter message to sign"></textarea>
+                    </div>
+                    <button onclick="signWithAppID()">Sign Message</button>
+                    <div id="signAppIDResult" class="result" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div class="flex-item">
+                <div class="section">
+                    <h2>✅ Verify Signature</h2>
+                    <div class="form-group">
+                        <label for="verifyMessage1">Original Message:</label>
+                        <textarea id="verifyMessage1" rows="3" placeholder="Enter the original message that was signed"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="verifySignature1">Signature (Hex):</label>
+                        <textarea id="verifySignature1" rows="2" placeholder="Enter hex-encoded signature to verify"></textarea>
+                    </div>
+                    <button onclick="verifyWithAppID()">Verify Signature</button>
+                    <div id="verifyAppIDResult" class="result" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-container">
+            <div class="flex-item">
+                <div class="section">
+                    <h2>🗳️ Multi-Party Voting Sign</h2>
+                    <p>Sign a message using multi-party consensus across multiple App IDs.</p>
+                    <form id="votingForm" onsubmit="event.preventDefault(); initiateVoting();">
+                        <div class="form-group">
+                            <label for="votingMessage">Message to Sign:</label>
+                            <textarea id="votingMessage" rows="3" placeholder="Enter the message to be signed by multiple TEE nodes...">Hello TEENet! This is a test message for multi-party cryptographic signing.</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="targetAppIds">Target App IDs (one per line):</label>
+                            <textarea id="targetAppIds" rows="4" placeholder="Enter App IDs here..." oninput="updateParticipantCount()"></textarea>
+                        </div>
+
+                        <div class="flex-container">
+                            <div class="flex-item">
+                                <div class="form-group">
+                                    <label for="requiredVotes">Required Votes (M):</label>
+                                    <input type="number" id="requiredVotes" min="1" max="10" value="1" />
+                                </div>
+                            </div>
+                            <div class="flex-item">
+                                <div class="form-group">
+                                    <label for="totalParticipants">Total Participants (N): <span id="participantCount">1</span></label>
+                                    <input type="number" id="totalParticipants" min="1" max="10" value="1" readonly style="background-color: #f5f5f5;" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit">🔐 Initiate Voting Sign</button>
+                    </form>
+                    
+                    <div id="votingResult" class="result" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div class="flex-item">
+                <div class="section">
+                    <h2>🔍 Verify Voting Signature</h2>
+                    <p>Verify a signature generated by multi-party voting consensus.</p>
+                    <div class="form-group">
+                        <label for="verifyVotingMessage">Original Message:</label>
+                        <textarea id="verifyVotingMessage" rows="3" placeholder="Enter the original message that was signed by voting..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="verifyVotingSignature">Voting Signature (Hex):</label>
+                        <textarea id="verifyVotingSignature" rows="2" placeholder="Enter hex-encoded voting signature to verify..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="verifyVotingAppId">Signing App ID:</label>
+                        <input type="text" id="verifyVotingAppId" placeholder="Enter the App ID that generated the signature" />
+                    </div>
+                    <button onclick="verifyVotingSignature()">🔍 Verify Voting Signature</button>
+                    <div id="verifyVotingResult" class="result" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔧 Advanced Functions</h2>
+            <div class="flex-container">
+                <div class="flex-item">
+                    <div class="section">
+                        <h3>Get Public Key</h3>
+                        <button onclick="getPublicKey()">Get Public Key</button>
+                        <div id="publicKeyResult" class="result" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize app and load APP_ID
+        console.log('Inline script executing');
+        
+        const currentPath = window.location.pathname;
+        
+        // Auto-update participant count function (duplicated from app.js for early access)
+        function updateParticipantCount() {
+            const targetAppIds = document.getElementById('targetAppIds').value.trim();
+            const targetAppIdArray = targetAppIds.split('\n').map(id => id.trim()).filter(id => id.length > 0);
+            const count = targetAppIdArray.length || 1;
+            
+            document.getElementById('totalParticipants').value = count;
+            document.getElementById('participantCount').textContent = count;
+            
+            // Update required votes if it exceeds participant count
+            const requiredVotesInput = document.getElementById('requiredVotes');
+            if (parseInt(requiredVotesInput.value) > count) {
+                requiredVotesInput.value = count;
+            }
+            requiredVotesInput.max = count;
+        }
+        
+        // Load APP_ID from config API
+        async function loadConfig() {
+            try {
+                const apiBase = currentPath.endsWith('/') ? currentPath + 'api' : currentPath + '/api';
+                console.log('API base:', apiBase);
+                
+                const response = await fetch(apiBase + '/config');
+                const config = await response.json();
+                console.log('Config response:', config);
+                
+                document.getElementById('appId').textContent = config.app_id || 'Unknown';
+                
+                // Store APP_ID globally for use in app.js
+                window.FIXED_APP_ID = config.app_id;
+                
+                // Transaction ID will be auto-generated in backend
+                
+                // Initialize Target App IDs with current app ID
+                document.getElementById('targetAppIds').value = config.app_id || '';
+                updateParticipantCount();
+            } catch (error) {
+                console.error('Config load failed:', error);
+                document.getElementById('appId').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        // Run config load after page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadConfig);
+        } else {
+            loadConfig();
+        }
+        
+        // Also load the main app.js
+        const jsPath = currentPath.endsWith('/') ? currentPath + 'app.js' : currentPath + '/app.js';
+        console.log('Loading JavaScript from:', jsPath);
+        const script = document.createElement('script');
+        script.src = jsPath;
+        script.onload = function() { console.log('JavaScript loaded successfully'); };
+        script.onerror = function() { console.error('Failed to load JavaScript from:', jsPath); };
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>

@@ -30,11 +30,11 @@ func main() {
 	client := client.NewClient(configServerAddr)
 	defer client.Close()
 
-	if err := client.Init(); err != nil {
+	if err := client.Init(nil); err != nil {
 		log.Fatalf("Client initialization failed: %v", err)
 	}
 
-	fmt.Printf("Client connected, Node ID: %d\n", client.GetNodeID())
+	fmt.Println("Client initialized successfully")
 
 	// Example: Get public key by app ID
 	fmt.Println("\n1. Get public key by app ID")
@@ -60,6 +60,25 @@ func main() {
 		fmt.Printf("Signing with app ID successful!\n")
 		fmt.Printf("Message: %s\n", string(message))
 		fmt.Printf("Signature: %x\n", signature)
+	}
+
+	// Example: Multi-party voting signature
+	fmt.Println("\n3. Multi-party voting signature")
+	targetAppIDs := []string{"secure-messaging-app", "secure-messaging-app1", "secure-messaging-app2"}
+	requiredVotes := 2
+	votingMessage := []byte("Multi-party signature request test")
+
+	votingResult, err := client.VotingSign(votingMessage, appID, targetAppIDs, requiredVotes)
+	if err != nil {
+		log.Printf("Voting signature failed: %v", err)
+	} else {
+		fmt.Printf("Voting signature successful!\n")
+		fmt.Printf("Task ID: %s\n", votingResult.TaskID)
+		fmt.Printf("Votes received: %d/%d\n", votingResult.SuccessfulVotes, votingResult.RequiredVotes)
+		fmt.Printf("Final result: %s\n", votingResult.FinalResult)
+		if votingResult.Signature != nil {
+			fmt.Printf("Signature: %x\n", votingResult.Signature)
+		}
 	}
 
 	fmt.Println("\n=== Example completed ===")

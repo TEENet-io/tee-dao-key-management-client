@@ -1,45 +1,41 @@
-# Use official Go image as build environment
-FROM golang:1.21-alpine AS builder
+# Multi-stage build for combined frontend/backend architecture
+FROM golang:1.24-alpine AS builder
+
+# Install dependencies for build
+RUN apk add --no-cache git ca-certificates tzdata
 
 # Set working directory
 WORKDIR /app
 
-# Install necessary tools
-RUN apk add --no-cache git ca-certificates
-
-# Copy go.mod and go.sum files
+# Copy go module files first for better caching
 COPY go.mod go.sum ./
 
 # Download dependencies
 RUN go mod download
 
-# Copy source code
-COPY . .
+# Copy source code (all .go files for modular structure)
+COPY *.go ./
 
-# Build application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o signature-tool main.go
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o signature-tool .
 
-# Use lightweight alpine image as runtime environment
-FROM alpine:latest
+# Final stage - use alpine
+FROM alpine:3.19
 
-# Install ca-certificates for HTTPS support
-RUN apk --no-cache add ca-certificates
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates tzdata wget
 
-# Create non-root user
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
-
-# Set working directory
+# Create working directory
 WORKDIR /app
 
-# Copy binary from build stage
+# Copy the built binary
 COPY --from=builder /app/signature-tool .
 
-# Change file ownership
-RUN chown -R appuser:appgroup /app
+# Copy frontend files
+COPY frontend/ ./frontend/
 
-# Switch to non-root user
-USER appuser
+# Make binary executable
+RUN chmod +x signature-tool
 
 # Expose port
 EXPOSE 8080
@@ -48,6 +44,11 @@ EXPOSE 8080
 ENV GIN_MODE=release
 ENV PORT=8080
 ENV TEE_CONFIG_ADDR=localhost:50052
+ENV FRONTEND_PATH=./frontend
 
-# Run application
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
+
+# Default command
 CMD ["./signature-tool"]

@@ -1,139 +1,135 @@
 # TEENet Signature Tool
 
-A comprehensive signature tool for TEENet key management system that provides both web interface and REST API for digital signature operations.
+一个用于TEENet密钥管理系统的签名和验证工具，采用单体架构设计，提供Web界面和REST API。
 
-## Overview
+## 项目结构
 
-The TEENet Signature Tool is a Go-based web application that provides digital signature functionality using the TEENet key management client. It supports multiple cryptographic protocols and curves, offering both a user-friendly web interface and a comprehensive REST API.
+```
+signature-tool/
+├── main.go                    # 主程序和HTTP路由
+├── types.go                   # 数据结构定义
+├── crypto.go                  # 加密和签名验证逻辑
+├── server.go                  # 静态文件服务
+├── voting.go                  # 投票处理逻辑
+├── go.mod                     # Go模块配置
+├── go.sum                     # Go依赖锁定
+├── Dockerfile                 # Docker配置
+├── frontend/                  # 前端静态文件
+│   ├── index.html            # 主页面
+│   ├── styles.css            # 样式文件
+│   └── app.js                # JavaScript逻辑
+└── README.md                  # 项目文档
+```
 
-## Features
+## 功能特性
 
-- **Web Interface**: Interactive HTML interface for easy signature operations
-- **REST API**: Complete API for programmatic access
-- **Multiple Protocols**: Support for ECDSA and Schnorr signature protocols
-- **Multiple Curves**: Support for ED25519, SECP256K1, and SECP256R1 curves
-- **App ID Integration**: Simplified operations using App ID instead of raw public keys
-- **Signature Verification**: Comprehensive signature verification capabilities
-- **Docker Support**: Containerized deployment with Docker
+- **数字签名**: 使用TEE密钥管理系统对消息进行签名
+- **签名验证**: 验证数字签名的有效性
+- **多方投票签名**: 支持多个TEE节点的投票式签名机制
+- **多协议支持**: 支持ECDSA和Schnorr协议
+- **多曲线支持**: 支持ED25519、SECP256K1、SECP256R1曲线
+- **Web界面**: 直观的Web操作界面
+- **REST API**: 完整的API接口
+- **Docker支持**: 完整的容器化部署方案
+- **容器路径支持**: 支持代理访问场景的动态路径处理
 
-## Prerequisites
+## 系统要求
 
 - Go 1.24 or higher
-- TEENet TEE Configuration Server running on `localhost:50052` (default)
-- Valid App ID configured in environment
+- TEENet TEE Configuration Server
+- 有效的App ID配置
 
-## Installation
+## 安装部署
 
-### Local Development
+### Docker部署（推荐）
 
-1. **Clone the repository and navigate to the signature tool directory:**
+1. **构建镜像**:
    ```bash
-   cd go/example/signature-tool
+   docker build -t teenet-signature-tool:latest .
    ```
 
-2. **Install dependencies:**
+2. **运行容器**:
+   ```bash
+   docker run -d \
+     --name signature-tool \
+     -p 8080:8080 \
+     -e APP_ID="your-app-id-here" \
+     -e TEE_CONFIG_ADDR="your-tee-server:50052" \
+     teenet-signature-tool:latest
+   ```
+
+### 本地开发
+
+1. **安装依赖**:
    ```bash
    go mod download
    ```
 
-3. **Set required environment variables:**
+2. **设置环境变量**:
    ```bash
    export APP_ID="your-app-id-here"
    export TEE_CONFIG_ADDR="localhost:50052"
    export PORT="8080"
    ```
 
-4. **Build and run:**
+3. **构建运行**:
    ```bash
-   go build -o signature-tool main.go
+   go build -o signature-tool .
    ./signature-tool
    ```
 
-### Docker Deployment
+### 从源码构建Docker镜像
 
-#### Build and Run Locally
+```bash
+docker build -t teenet-signature-tool:latest .
+```
 
-1. **Build the Docker image:**
-   ```bash
-   docker build -t teenet-signature-tool .
-   ```
+## 配置说明
 
-2. **Run the container:**
-   ```bash
-   docker run -d \
-     --name signature-tool \
-     -p 8080:8080 \
-     -e APP_ID="your-app-id-here" \
-     -e TEE_CONFIG_ADDR="localhost:50052" \
-     -e PORT="8080" \
-     teenet-signature-tool
-   ```
+### 环境变量
 
-#### Build and Compress Docker Image
+| 变量 | 描述 | 默认值 | 必需 |
+|------|------|--------|------|
+| `APP_ID` | 应用ID，用于签名操作 | - | 是 |
+| `TEE_CONFIG_ADDR` | TEE配置服务器地址 | `localhost:50052` | 否 |
+| `PORT` | Web服务器端口 | `8080` | 否 |
+| `FRONTEND_PATH` | 前端文件路径 | `./frontend` | 否 |
 
-To build and compress the Docker image for distribution:
+## 使用说明
 
-1. **Use the build script:**
-   ```bash
-   ./build-image.sh
-   ```
+### Web界面
 
-2. **The script will:**
-   - Build the Docker image as `teenet-signature-tool:latest`
-   - Compress it to `teenet-signature-tool-latest.tar.gz`
-   - Display file size and usage instructions
-
-3. **To load the compressed image elsewhere:**
-   ```bash
-   docker load < teenet-signature-tool-latest.tar.gz
-   ```
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `APP_ID` | Application ID for signature operations | - | Yes |
-| `TEE_CONFIG_ADDR` | TEE configuration server address | `localhost:50052` | No |
-| `PORT` | Web server port | `8080` | No |
-
-## Usage
-
-### Web Interface
-
-Once the server is running, access the web interface at:
+访问Web界面：
 ```
 http://localhost:8080
 ```
 
-The web interface provides the following functions:
+或通过代理访问（支持容器路径）：
+```
+http://your-domain/container/your-app-id/
+```
 
-1. **Sign Message**: Sign a message using the configured App ID
-2. **Verify Signature**: Verify a signature using the App ID
-3. **Get Public Key**: Retrieve the public key associated with the App ID
-4. **Advanced Sign**: Sign with custom public key, protocol, and curve
-5. **Advanced Verify**: Verify with custom public key, protocol, and curve
+Web界面提供以下功能：
+
+1. **简单签名**: 使用配置的App ID对消息进行签名
+2. **简单验证**: 使用App ID验证签名
+3. **多方投票签名**: 发起多个TEE节点参与的投票式签名
+4. **投票签名验证**: 验证投票签名的有效性
+4. **获取公钥**: 获取App ID对应的公钥
 
 ### REST API
 
-The tool provides a comprehensive REST API with the following endpoints:
-
-#### Health Check
+#### 健康检查
 ```http
 GET /api/health
 ```
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "TEENet Signature Tool",
-  "node_id": 123
-}
+#### 获取配置
+```http
+GET /api/config
 ```
 
-#### Get Public Key by App ID
+#### 获取公钥
 ```http
 POST /api/get-public-key
 Content-Type: application/json
@@ -143,18 +139,7 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "app_id": "your-app-id",
-  "public_key": "base64-encoded-public-key",
-  "protocol": "schnorr",
-  "curve": "ed25519"
-}
-```
-
-#### Sign Message with App ID
+#### 签名（使用App ID）
 ```http
 POST /api/sign-with-appid
 Content-Type: application/json
@@ -165,17 +150,7 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Hello, World!",
-  "app_id": "your-app-id",
-  "signature": "hex-encoded-signature"
-}
-```
-
-#### Verify Signature with App ID
+#### 验证签名（使用App ID）
 ```http
 POST /api/verify-with-appid
 Content-Type: application/json
@@ -187,166 +162,267 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "valid": true,
-  "message": "Hello, World!",
-  "signature": "hex-encoded-signature",
-  "app_id": "your-app-id",
-  "protocol": "schnorr",
-  "curve": "ed25519"
-}
-```
 
-#### Sign Message with Public Key (Advanced)
+#### 多方投票签名
 ```http
-POST /api/sign
+POST /api/vote
 Content-Type: application/json
 
 {
-  "public_key": "base64-encoded-public-key",
-  "protocol": "schnorr",
-  "curve": "ed25519",
-  "message": "Hello, World!"
+  "description": "Hello TEENet! This is a test message for multi-party signing.",
+  "target_app_ids": ["app-id-1", "app-id-2", "app-id-3"],
+  "required_votes": 2,
+  "total_participants": 3
 }
 ```
 
-**Response:**
+**响应**:
 ```json
 {
   "success": true,
-  "message": "Hello, World!",
-  "public_key": "base64-encoded-public-key",
-  "protocol": "schnorr",
-  "curve": "ed25519",
-  "signature": "hex-encoded-signature"
+  "task_id": "voting-task-uuid",
+  "message": "Voting completed and signature generated",
+  "voting_results": {
+    "total_responses": 3,
+    "successful_votes": 2,
+    "required_votes": 2,
+    "voting_complete": true,
+    "final_result": "success",
+    "vote_details": [...]
+  },
+  "signature": "hex-encoded-multi-party-signature",
+  "timestamp": "2025-08-22T12:34:56Z"
 }
 ```
 
-#### Verify Signature with Public Key (Advanced)
-```http
-POST /api/verify
-Content-Type: application/json
+## 支持的协议和曲线
 
-{
-  "public_key": "base64-encoded-public-key",
-  "protocol": "schnorr",
-  "curve": "ed25519",
-  "message": "Hello, World!",
-  "signature": "hex-encoded-signature"
-}
-```
+### 协议
+- `ecdsa`: 椭圆曲线数字签名算法
+- `schnorr`: Schnorr签名方案
 
-**Response:**
-```json
-{
-  "success": true,
-  "valid": true,
-  "message": "Hello, World!",
-  "public_key": "base64-encoded-public-key",
-  "signature": "hex-encoded-signature",
-  "protocol": "schnorr",
-  "curve": "ed25519"
-}
-```
+### 曲线
+- `ed25519`: Edwards25519曲线
+- `secp256k1`: SECP256K1曲线（比特币曲线）
+- `secp256r1`: SECP256R1曲线（NIST P-256）
 
-## Supported Protocols and Curves
+## 错误处理
 
-### Protocols
-- `ecdsa`: Elliptic Curve Digital Signature Algorithm
-- `schnorr`: Schnorr signature scheme
-
-### Curves
-- `ed25519`: Edwards25519 curve
-- `secp256k1`: SECP256K1 curve (Bitcoin curve)
-- `secp256r1`: SECP256R1 curve (NIST P-256)
-
-## Error Handling
-
-All API endpoints return consistent error responses:
+所有API端点返回一致的错误响应：
 
 ```json
 {
   "success": false,
-  "error": "Error description"
+  "error": "错误描述"
 }
 ```
 
-Common error scenarios:
-- Invalid request format
-- Missing required fields
-- Invalid public key format (must be base64)
-- Invalid signature format (must be hex)
-- Unsupported protocol or curve
-- TEE server communication errors
+常见错误场景：
+- 无效的请求格式
+- 缺少必需字段
+- 无效的公钥格式（必须是base64）
+- 无效的签名格式（必须是hex）
+- 不支持的协议或曲线
+- TEE服务器通信错误
 
-## Security Considerations
+## 安全考虑
 
-1. **Environment Variables**: Store sensitive configuration in environment variables
-2. **Network Security**: Ensure TEE configuration server is properly secured
-3. **Input Validation**: All inputs are validated before processing
-4. **Error Messages**: Error messages do not expose sensitive information
-5. **CORS**: CORS is enabled for web interface access
+1. **环境变量**: 敏感配置存储在环境变量中
+2. **网络安全**: 确保TEE配置服务器得到适当保护
+3. **输入验证**: 所有输入在处理前都会被验证
+4. **错误消息**: 错误消息不暴露敏感信息
+5. **CORS**: 为Web界面访问启用了CORS
 
-## Development
+## 技术特性
 
-### Project Structure
-```
-signature-tool/
-├── main.go          # Main application file
-├── go.mod           # Go module file
-├── go.sum           # Go module checksums
-├── Dockerfile       # Docker configuration
-├── build-image.sh   # Docker image build and compression script
-└── README.md        # This file
-```
+### 动态路径处理
+- 支持直接访问：`http://localhost:8080/`
+- 支持代理访问：`http://domain/container/app-id/`
+- CSS和JS文件动态路径解析
+- 基于当前URL路径自动适配
 
-### Dependencies
-- `github.com/TEENet-io/tee-dao-key-management-client/go`: TEENet key management client
-- `github.com/gin-gonic/gin`: Web framework
-- Standard Go crypto libraries
+### 静态文件服务
+- 集成的静态文件服务器
+- 支持HTML、CSS、JS、图片等文件类型
+- 安全的路径验证，防止目录遍历攻击
 
-### Building
-```bash
-go build -o signature-tool main.go
-```
+## 故障排除
 
-### Testing
-The tool includes comprehensive error handling and validation. Test the API endpoints using curl or the web interface.
-
-## Troubleshooting
-
-### Common Issues
+### 常见问题
 
 1. **"APP_ID environment variable is required"**
-   - Solution: Set the `APP_ID` environment variable
+   - 解决方案: 设置`APP_ID`环境变量
 
 2. **"Failed to initialize TEE client"**
-   - Solution: Ensure the TEE configuration server is running and accessible
+   - 解决方案: 确保TEE配置服务器正在运行且可访问
 
-3. **"Invalid public key format"**
-   - Solution: Ensure public keys are base64 encoded
+3. **CSS/JS文件404错误**
+   - 解决方案: 确保使用最新版本的镜像，支持动态路径处理
 
-4. **"Invalid signature format"**
-   - Solution: Ensure signatures are hex encoded
+4. **"Invalid public key format"**
+   - 解决方案: 确保公钥是base64编码
 
-### Logs
-The application logs important events including:
-- Server startup information
-- API request processing
-- Error conditions
-- Signature operation results
+5. **"Invalid signature format"**
+   - 解决方案: 确保签名是hex编码
 
-## License
+### 日志
+应用程序记录重要事件，包括：
+- 服务器启动信息
+- API请求处理
+- 错误条件
+- 签名操作结果
 
-This project is part of the TEENet key management client and follows the same license terms.
+## 多方投票签名流程
 
-## Contributing
+### 投票流程图
 
-When contributing to this tool:
-1. Follow Go coding standards
-2. Add appropriate error handling
-3. Update documentation for new features
-4. Test thoroughly before submitting changes 
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend UI   │    │  Signature Tool │    │ TEE DAO Client  │
+│                 │    │     Backend     │    │                 │
+└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
+          │                      │                      │
+          │ 1. POST /api/vote    │                      │
+          ├─────────────────────►│                      │
+          │ {                    │                      │
+          │   description,       │                      │
+          │   target_app_ids,    │                      │
+          │   required_votes     │                      │
+          │ }                    │                      │
+          │                      │                      │
+          │                      │ 2. VotingSign()      │
+          │                      ├─────────────────────►│
+          │                      │                      │
+          │                      │                      │ 3. 并发发送投票请求
+          │                      │                      │ ┌─────────────────┐
+          │                      │                      │ │                 │
+          │                      │                      ├─┤ Target App ID 1 │
+          │                      │                      │ │                 │
+          │                      │                      │ └─────────────────┘
+          │                      │                      │ ┌─────────────────┐
+          │                      │                      │ │                 │
+          │                      │                      ├─┤ Target App ID 2 │
+          │                      │                      │ │                 │
+          │                      │                      │ └─────────────────┘
+          │                      │                      │ ┌─────────────────┐
+          │                      │                      │ │                 │
+          │                      │                      ├─┤ Target App ID N │
+          │                      │                      │ │                 │
+          │                      │                      │ └─────────────────┘
+          │                      │                      │
+          │                      │                      │ 4. 等待所有投票结果
+          │                      │                      │ (不再提前终止)
+          │                      │                      │
+          │                      │ 5. 投票结果汇总       │
+          │                      │ (包含详细投票信息)     │
+          │                      │◄─────────────────────┤
+          │                      │                      │
+          │                      │ 6. 如果通过则生成签名 │
+          │                      ├─────────────────────►│ SignWithAppID()
+          │                      │                      │
+          │                      │ 签名结果              │
+          │                      │◄─────────────────────┤
+          │                      │ 7. 最终结果          │
+          │                      │ {                    │
+          │                      │   success,           │
+          │                      │   task_id,           │
+          │                      │   voting_results: {  │
+          │                      │     vote_details[]   │
+          │                      │   },                 │
+          │                      │   signature          │
+          │                      │ }                    │
+          │                      │◄─────────────────────┤
+          │                      │                      │
+          │ 8. 显示投票结果       │                      │
+          │ 包括：               │                      │
+          │ - 每个节点投票状态    │                      │
+          │ - 最终签名结果        │                      │
+          │◄─────────────────────┤                      │
+          │                      │                      │
+```
+
+### 投票机制特点
+
+1. **M-of-N阈值投票**: 配置所需通过票数，如3个节点中需要2票通过
+2. **并发投票**: 同时向所有目标App ID发送投票请求
+3. **完整收集**: 等待所有投票响应完成，不提前终止
+4. **详细记录**: 记录每个节点的投票状态和错误信息
+5. **自动签名**: 投票通过后自动使用配置的App ID生成签名
+6. **任务跟踪**: 每个投票轮次都有唯一的Task ID用于跟踪
+
+### 投票响应格式
+
+```json
+{
+  "success": true,
+  "task_id": "vote_app-id_1692708123456789",
+  "message": "Voting completed and signature generated by app-id for task vote_app-id_1692708123456789",
+  "voting_results": {
+    "total_responses": 3,
+    "successful_votes": 2,
+    "required_votes": 2,
+    "voting_complete": true,
+    "final_result": "APPROVED",
+    "vote_details": [
+      {
+        "client_id": "app-id-1",
+        "success": true,
+        "response": true,
+        "error": ""
+      },
+      {
+        "client_id": "app-id-2", 
+        "success": true,
+        "response": true,
+        "error": ""
+      },
+      {
+        "client_id": "app-id-3",
+        "success": true,
+        "response": false,
+        "error": ""
+      }
+    ]
+  },
+  "signature": "3045022100ab1234...def890",
+  "timestamp": "2025-08-22T12:34:56Z"
+}
+```
+
+## 开发指南
+
+### 代码架构
+
+项目采用模块化设计：
+- **main.go**: HTTP服务器和API路由定义
+- **types.go**: 请求/响应数据结构
+- **crypto.go**: 签名验证和加密算法实现
+- **server.go**: 静态文件服务和路径处理
+- **voting.go**: 投票处理和自定义投票逻辑
+
+### 依赖项
+- `github.com/TEENet-io/tee-dao-key-management-client/go`: TEENet密钥管理客户端（使用远程依赖）
+- `github.com/gin-gonic/gin`: Web框架
+- 标准Go加密库
+
+### 构建
+```bash
+go build -o signature-tool .
+```
+
+### Docker构建
+```bash
+docker build -t teenet-signature-tool:latest .
+```
+
+## 许可证
+
+此项目是TEENet密钥管理客户端的一部分，遵循相同的许可条款。
+
+## 贡献指南
+
+在为此工具做贡献时：
+1. 遵循Go编码标准
+2. 添加适当的错误处理
+3. 为新功能更新文档
+4. 提交更改前进行充分测试
