@@ -81,6 +81,11 @@ func staticFileHandler(frontendPath string) gin.HandlerFunc {
 			}
 		}
 
+		// Set no-cache headers to prevent browser caching
+		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+
 		// Set content type
 		if isSPARoute {
 			c.Header("Content-Type", "text/html")

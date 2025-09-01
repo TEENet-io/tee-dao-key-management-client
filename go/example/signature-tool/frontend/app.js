@@ -144,6 +144,34 @@ async function verifyWithAppID() {
     }
 }
 
+// Check if message contains approval keywords
+function checkMessageApproval() {
+    const message = document.getElementById('votingMessage').value.toLowerCase();
+    const tipElement = document.getElementById('approvalTip');
+    
+    if (!tipElement) {
+        // Create tip element if it doesn't exist
+        const tip = document.createElement('div');
+        tip.id = 'approvalTip';
+        tip.style.cssText = 'margin-top: 8px; font-size: 13px; padding: 8px 12px; border-radius: 4px; transition: all 0.3s ease;';
+        document.getElementById('votingMessage').parentNode.appendChild(tip);
+    }
+    
+    const tip = document.getElementById('approvalTip');
+    
+    if (message.includes('test')) {
+        tip.innerHTML = '✅ <strong>Good!</strong> Your message contains "test" - demo nodes will approve this message';
+        tip.style.backgroundColor = '#f6ffed';
+        tip.style.color = '#52c41a';
+        tip.style.border = '1px solid #b7eb8f';
+    } else {
+        tip.innerHTML = '⚠️ <strong>Note:</strong> Your message doesn\'t contain "test" - demo nodes may reject this vote';
+        tip.style.backgroundColor = '#fff7e6';
+        tip.style.color = '#fa8c16';
+        tip.style.border = '1px solid #ffd591';
+    }
+}
+
 // Voting functionality
 async function initiateVoting() {
     const message = document.getElementById('votingMessage').value.trim();
@@ -184,10 +212,11 @@ async function initiateVoting() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                description: message,
-                target_app_ids: targetAppIdArray,
+                message: btoa(message), // base64 encode
+                signer_app_id: getAppId(),
                 required_votes: requiredVotes,
-                total_participants: totalParticipants
+                target_app_ids: targetAppIdArray,
+                is_forwarded: false
             })
         });
 
@@ -195,11 +224,10 @@ async function initiateVoting() {
         
         if (data.success) {
             const result = JSON.stringify({
-                task_id: data.task_id,
                 voting_complete: data.voting_results?.voting_complete,
                 successful_votes: data.voting_results?.successful_votes,
                 required_votes: data.voting_results?.required_votes,
-                total_responses: data.voting_results?.total_responses,
+                total_responses: data.voting_results?.total_targets, // 使用 total_targets 字段
                 final_result: data.voting_results?.final_result,
                 vote_details: data.voting_results?.vote_details || [],
                 signature: data.signature || 'No signature',
@@ -293,3 +321,11 @@ function showResult(element, content, type) {
     element.className = 'result ' + type;
     element.style.display = 'block';
 }
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Check message approval on page load
+    setTimeout(function() {
+        checkMessageApproval();
+    }, 100);
+});

@@ -20,41 +20,15 @@ type ECDSASignature struct {
 	R, S *big.Int
 }
 
-// VotingResultSummary contains the summary of voting results
-type VotingResultSummary struct {
-	TotalResponses  int          `json:"total_responses"`
-	SuccessfulVotes int          `json:"successful_votes"`
-	RequiredVotes   int          `json:"required_votes"`
-	VotingComplete  bool         `json:"voting_complete"`
-	FinalResult     string       `json:"final_result"`
-	VoteDetails     []VoteDetail `json:"vote_details"`
+
+// IncomingVoteRequest for handling vote requests from other apps
+type IncomingVoteRequest struct {
+	Message           string   `json:"message" binding:"required"`           // Base64 encoded message
+	SignerAppID       string   `json:"signer_app_id" binding:"required"`     // The app requesting the signature
+	RequiredVotes     int      `json:"required_votes" binding:"required"`
+	TargetAppIDs      []string `json:"target_app_ids,omitempty"`             // Target apps for further voting
 }
 
-// VoteDetail contains details of each vote
-type VoteDetail struct {
-	ClientID string `json:"client_id"`
-	Success  bool   `json:"success"`
-	Response bool   `json:"response"`
-	Error    string `json:"error,omitempty"`
-}
-
-// VotingRequest for handling HTTP requests
-type VotingRequest struct {
-	Description        string   `json:"description"`
-	TargetAppIDs       []string `json:"target_app_ids"`
-	RequiredVotes      int      `json:"required_votes"`
-	TotalParticipants  int      `json:"total_participants"`
-}
-
-// VotingResponse for handling HTTP responses
-type VotingResponse struct {
-	Success       bool                   `json:"success"`
-	TaskID        string                 `json:"task_id"`
-	Message       string                 `json:"message"`
-	VotingResults *VotingResultSummary   `json:"voting_results,omitempty"`
-	Signature     string                 `json:"signature,omitempty"`
-	Timestamp     string                 `json:"timestamp,omitempty"`
-}
 
 type VerifyWithAppIDRequest struct {
 	Message   string `json:"message" binding:"required"`
