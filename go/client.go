@@ -279,11 +279,24 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, targe
 	log.Printf("🗳️  Starting HTTP voting process for %s", signerAppID)
 	log.Printf("👥 Targets: %v, required votes: %d/%d", targetAppIDs, requiredVotes, len(targetAppIDs))
 
-	// Initialize vote details with local vote
-	voteDetails := []VoteDetail{{ClientID: signerAppID, Success: true, Response: localApproval}}
+	// Initialize vote details and approval count
+	var voteDetails []VoteDetail
 	approvalCount := 0
-	if localApproval {
-		approvalCount = 1
+	
+	// Add local vote only if signerAppID is in targetAppIDs
+	signerInTargets := false
+	for _, targetAppID := range targetAppIDs {
+		if targetAppID == signerAppID {
+			signerInTargets = true
+			break
+		}
+	}
+	
+	if signerInTargets {
+		voteDetails = append(voteDetails, VoteDetail{ClientID: signerAppID, Success: true, Response: localApproval})
+		if localApproval {
+			approvalCount = 1
+		}
 	}
 
 	// Batch get deployment targets for remote app IDs (excluding self)

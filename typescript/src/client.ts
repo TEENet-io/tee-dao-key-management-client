@@ -332,9 +332,18 @@ export class Client {
     console.log(`🗳️  Starting HTTP voting process for ${signerAppId}`);
     console.log(`👥 Targets: ${JSON.stringify(targetAppIds)}, required votes: ${requiredVotes}/${targetAppIds.length}`);
 
-    // Initialize vote details with local vote
-    const voteDetails: VoteDetail[] = [{ clientId: signerAppId, success: true, response: localApproval }];
-    let approvalCount = localApproval ? 1 : 0;
+    // Initialize vote details and approval count
+    const voteDetails: VoteDetail[] = [];
+    let approvalCount = 0;
+    
+    // Add local vote only if signerAppId is in targetAppIds
+    const signerInTargets = targetAppIds.includes(signerAppId);
+    if (signerInTargets) {
+      voteDetails.push({ clientId: signerAppId, success: true, response: localApproval });
+      if (localApproval) {
+        approvalCount = 1;
+      }
+    }
 
     // Batch get deployment targets for remote app IDs (excluding self)
     const remoteTargetAppIds = targetAppIds.filter(targetAppId => targetAppId !== signerAppId);
