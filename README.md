@@ -179,8 +179,10 @@ cd mock-server
 
 ### Voting Decision Logic
 Current voting decision implementation:
-- Approves if message content contains "test" (case-insensitive)
-- Can be customized by modifying the application code
+- **Auto-Approval**: Messages containing "test" (case-insensitive) are automatically approved
+- **Auto-Rejection**: Messages without "test" are automatically rejected
+- **Customizable**: Can be modified in the application code to implement custom approval logic
+- **Consistent**: Same logic applied across all voting nodes for predictable testing
 
 ## Go Implementation
 
@@ -196,8 +198,10 @@ go get github.com/TEENet-io/tee-dao-key-management-client/go
 package main
 
 import (
+    "bytes"
     "fmt"
     "log"
+    "net/http"
     
     client "github.com/TEENet-io/tee-dao-key-management-client/go"
 )
@@ -240,13 +244,16 @@ func main() {
     // Example 3: Distributed voting signature
     targetAppIDs := []string{"secure-messaging-app", "financial-trading-platform", "digital-identity-service"}
     requiredVotes := 2
-    votingMessage := []byte("Multi-party signature request")
+    votingMessage := []byte("test message for multi-party voting") // Contains "test" to trigger approval
     localApproval := true
     
-    // Create request data (simplified example)
-    requestBody := []byte(`{"message":"dGVzdA==","signer_app_id":"secure-messaging-app","target_app_ids":["app-1","app-2","app-3"],"required_votes":2}`)
+    // Create a mock HTTP request like signature-tool does
+    requestBody := []byte(`{"message":"dGVzdCBtZXNzYWdlIGZvciBtdWx0aS1wYXJ0eSB2b3Rpbmc=","signer_app_id":"secure-messaging-app","target_app_ids":["secure-messaging-app","financial-trading-platform","digital-identity-service"],"required_votes":2,"is_forwarded":false}`)
+    req, _ := http.NewRequest("POST", "/vote", bytes.NewBuffer(requestBody))
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("User-Agent", "TEE-DAO-Client/1.0")
     
-    votingResult, err := client.VotingSign(votingMessage, appID, targetAppIDs, requiredVotes, localApproval, requestBody)
+    votingResult, err := client.VotingSign(req, votingMessage, appID, targetAppIDs, requiredVotes, localApproval)
     if err != nil {
         log.Printf("Voting signature failed: %v", err)
     } else {
@@ -324,10 +331,28 @@ async function main() {
     // Example 3: Distributed voting signature
     const targetAppIDs = ['secure-messaging-app', 'financial-trading-platform', 'digital-identity-service'];
     const requiredVotes = 2;
-    const votingMessage = new TextEncoder().encode('Multi-party signature request');
+    const votingMessage = new TextEncoder().encode('test message for multi-party voting'); // Contains "test" to trigger approval
+    const localApproval = true;
+    
+    // Create a mock HTTP request like signature-tool does
+    const { IncomingMessage } = require('http');
+    const mockReq = new IncomingMessage(null as any);
+    mockReq.method = 'POST';
+    mockReq.url = '/vote';
+    mockReq.headers = {
+      'content-type': 'application/json',
+      'user-agent': 'TEE-DAO-Client/1.0'
+    };
+    (mockReq as any).body = JSON.stringify({
+      message: Buffer.from(votingMessage).toString('base64'),
+      signer_app_id: appID,
+      target_app_ids: targetAppIDs,
+      required_votes: requiredVotes,
+      is_forwarded: false
+    });
     
     try {
-      const votingResult = await client.votingSign(votingMessage, appID, targetAppIDs, requiredVotes);
+      const votingResult = await client.votingSign(mockReq, votingMessage, appID, targetAppIDs, requiredVotes, localApproval);
       console.log('Voting signature successful!');
       console.log(`Votes received: ${votingResult.successfulVotes}/${votingResult.requiredVotes}`);
       console.log(`Final result: ${votingResult.finalResult}`);
@@ -376,14 +401,24 @@ await client.init();
 
 ### Distributed Voting Signature
 
-**Go:**
+**Go (new signature with HTTP request support):**
 ```go
-votingResult, err := client.VotingSign(message, signerAppID, targetAppIDs, requiredVotes, localApproval, requestBody)
+// Create HTTP request object
+req, _ := http.NewRequest("POST", "/vote", bytes.NewBuffer(requestBody))
+req.Header.Set("Content-Type", "application/json")
+
+votingResult, err := client.VotingSign(req, message, signerAppID, targetAppIDs, requiredVotes, localApproval)
 ```
 
-**TypeScript:**
+**TypeScript (new signature with HTTP request support):**
 ```typescript
-const votingResult = await client.votingSign(message, signerAppId, targetAppIds, requiredVotes)
+// Create HTTP request mock
+const mockReq = new IncomingMessage(null as any);
+mockReq.method = 'POST';
+mockReq.url = '/vote';
+mockReq.headers = { 'content-type': 'application/json' };
+
+const votingResult = await client.votingSign(mockReq, message, signerAppId, targetAppIds, requiredVotes, localApproval)
 ```
 
 ### AppID Service Methods
@@ -465,11 +500,13 @@ signature, err := client.SignWithAppID(message, appID)
 ## Latest Architecture Optimizations
 
 ### Distributed Voting System Improvements
-1. **Simplified API**: Removed redundant parameters, `VotingSign` now automatically parses request data
-2. **Unified Voting Method**: Only one `VotingSign` method, removed duplicate methods
-3. **Correct Signer**: Uses `signer_app_id` as signature generator, not receiver
-4. **Cleaned Data Structures**: Removed unnecessary fields like `TaskID` and `TotalParticipants`
-5. **Cache-Free Deployment**: Web application supports zero-cache deployment, no need to manually clear browser cache
+1. **HTTP Request Integration**: `VotingSign` now accepts HTTP request objects for better header and body handling
+2. **Unified API Signature**: Both Go and TypeScript versions now have identical method signatures
+3. **Smart Vote Filtering**: Only shows votes from target App IDs, excludes local vote when not in target list
+4. **Correct Signer**: Uses `signer_app_id` as signature generator, not receiver
+5. **Cleaned Data Structures**: Removed unnecessary fields like `TaskID` and `TotalParticipants`
+6. **Cache-Free Deployment**: Web application supports zero-cache deployment, no need to manually clear browser cache
+7. **Improved Success Conditions**: Clear indication that messages containing "test" will succeed, others will fail
 
 ### Technical Features
 - **Loop Prevention**: Uses `is_forwarded` flag to prevent infinite voting request loops
