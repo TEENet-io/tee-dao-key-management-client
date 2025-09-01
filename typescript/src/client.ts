@@ -18,6 +18,7 @@ import { AppIDClient } from './appid-client';
 import { VotingClient } from './voting-client';
 import * as tls from 'tls';
 import * as grpc from '@grpc/grpc-js';
+import { IncomingMessage } from 'http';
 
 export class Client {
   private configClient: ConfigClient;
@@ -259,13 +260,63 @@ export class Client {
     return this.taskClient.sign(message, new Uint8Array(publicKeyBuffer), protocolNum, curveNum, this.timeout);
   }
 
-  // VotingSign performs a voting process among specified app IDs and returns detailed results with signature if approved
+  // VotingSign performs a voting process among specified app IDs using HTTP requests and returns detailed results with signature if approved
+  // Method signature matches Go version: VotingSign(req *http.Request, message []byte, signerAppID string, targetAppIDs []string, requiredVotes int, localApproval bool)
   async votingSign(
+    req: IncomingMessage | null,
     message: Uint8Array,
     signerAppId: string,
     targetAppIds: string[],
-    requiredVotes: number
+    requiredVotes: number,
+    localApproval: boolean
+  ): Promise<VotingResult>;
+
+  async votingSign(
+    req: IncomingMessage | null,
+    message: Uint8Array,
+    signerAppId: string,
+    targetAppIds: string[],
+    requiredVotes: number,
+    localApproval: boolean
   ): Promise<VotingResult> {
+    let finalRequestBody: Uint8Array | undefined;
+    let headers: { [key: string]: string } | undefined;
+
+    // Extract request body and headers from HTTP request if available
+    if (req) {
+      if ((req as any).body) {
+        const bodyStr = typeof (req as any).body === 'string' ? (req as any).body : JSON.stringify((req as any).body);
+        finalRequestBody = new TextEncoder().encode(bodyStr);
+      }
+      headers = this.extractHeadersFromRequest(req);
+    }
+    // Parse isForwarded from the request data
+    let isForwarded = false;
+    if (finalRequestBody) {
+      try {
+        const requestMap = JSON.parse(new TextDecoder().decode(finalRequestBody));
+        isForwarded = requestMap.is_forwarded || false;
+      } catch (error) {
+        // Ignore JSON parse errors
+      }
+    }
+
+    // If this is a forwarded request, just return the local decision without further forwarding
+    if (isForwarded) {
+      console.log(`🔄 Forwarded request - returning local decision: ${localApproval} for app ${signerAppId}`);
+
+      const result: VotingResult = {
+        totalTargets: 1,
+        successfulVotes: localApproval ? 1 : 0,
+        requiredVotes,
+        votingComplete: localApproval,
+        finalResult: localApproval ? 'APPROVED' : 'REJECTED',
+        voteDetails: [{ clientId: signerAppId, success: true, response: localApproval }]
+      };
+
+      return result;
+    }
+
     if (targetAppIds.length === 0) {
       throw new Error('no target app IDs provided');
     }
@@ -278,77 +329,91 @@ export class Client {
       throw new Error('AppID client not initialized');
     }
 
-    const taskId = `vote_${signerAppId}_${Date.now()}`;
-    console.log(`🗳️  Starting voting process: ${taskId}`);
+    console.log(`🗳️  Starting HTTP voting process for ${signerAppId}`);
     console.log(`👥 Targets: ${JSON.stringify(targetAppIds)}, required votes: ${requiredVotes}/${targetAppIds.length}`);
 
-    // Batch get deployment targets for all target app IDs
-    const deploymentTargets = await this.appIDClient.getDeploymentTargetsForAppIDs(targetAppIds, this.timeout);
+    // Initialize vote details with local vote
+    const voteDetails: VoteDetail[] = [{ clientId: signerAppId, success: true, response: localApproval }];
+    let approvalCount = localApproval ? 1 : 0;
 
-    // Send voting requests to all target app IDs concurrently
-    const votePromises = targetAppIds.map(async (targetAppId): Promise<VoteDetail> => {
-      const target = deploymentTargets[targetAppId];
-      if (!target) {
-        console.log(`❌ No deployment target found for ${targetAppId}, skipping`);
-        return {
-          clientId: targetAppId,
-          success: false,
-          response: false,
-          error: 'No deployment target found'
-        };
-      }
+    // Batch get deployment targets for remote app IDs (excluding self)
+    const remoteTargetAppIds = targetAppIds.filter(targetAppId => targetAppId !== signerAppId);
 
+    // If there are remote targets, send voting requests
+    if (remoteTargetAppIds.length > 0) {
+      console.log(`🔍 Getting deployment targets for remote apps: ${JSON.stringify(remoteTargetAppIds)}`);
+      
       try {
-        const approved = await VotingClient.sendVotingRequestToDeployment(
-          target,
-          target.appID,
-          target.containerIP,
-          taskId,
-          message,
-          requiredVotes,
-          targetAppIds.length,
-          this.timeout
-        );
+        const deploymentTargets = await this.appIDClient.getDeploymentTargetsForAppIDs(remoteTargetAppIds, this.timeout);
+        console.log(`✅ Found ${Object.keys(deploymentTargets).length} deployment targets: ${JSON.stringify(Object.keys(deploymentTargets))}`);
 
-        return {
-          clientId: targetAppId,
-          success: true,
-          response: approved,
-        };
+        // Send HTTP voting requests to remote targets concurrently
+        const votePromises = remoteTargetAppIds.map(async (targetAppId): Promise<VoteDetail> => {
+          const target = deploymentTargets[targetAppId];
+          if (!target) {
+            console.log(`❌ No deployment target found for ${targetAppId}, skipping`);
+            return {
+              clientId: targetAppId,
+              success: false,
+              response: false,
+              error: 'No deployment target found'
+            };
+          }
+
+          try {
+            // Modify request body to mark as forwarded
+            let modifiedRequestData = finalRequestBody;
+            if (finalRequestBody) {
+              const requestMap = JSON.parse(new TextDecoder().decode(finalRequestBody));
+              requestMap.is_forwarded = true;
+              modifiedRequestData = new TextEncoder().encode(JSON.stringify(requestMap));
+            }
+
+            const approved = await this.sendHTTPVoteRequest(target, modifiedRequestData || new Uint8Array(), headers);
+
+            return {
+              clientId: targetAppId,
+              success: true,
+              response: approved,
+            };
+          } catch (error) {
+            console.log(`❌ Failed to get vote from ${targetAppId}: ${error}`);
+            return {
+              clientId: targetAppId,
+              success: false,
+              response: false,
+              error: error instanceof Error ? error.message : String(error)
+            };
+          }
+        });
+
+        // Collect remote voting results
+        const remoteVoteDetails = await Promise.all(votePromises);
+        voteDetails.push(...remoteVoteDetails);
+
+        // Count additional approvals from remote votes
+        for (const detail of remoteVoteDetails) {
+          if (detail.success && detail.response) {
+            approvalCount++;
+            console.log(`✅ Vote approved by ${detail.clientId} (${approvalCount}/${requiredVotes})`);
+          } else if (detail.success && !detail.response) {
+            console.log(`❌ Vote rejected by ${detail.clientId}`);
+          } else {
+            console.log(`❌ Failed to get vote from ${detail.clientId}: ${detail.error}`);
+          }
+        }
       } catch (error) {
-        console.log(`❌ Failed to get vote from ${targetAppId}: ${error}`);
-        return {
-          clientId: targetAppId,
-          success: false,
-          response: false,
-          error: error instanceof Error ? error.message : String(error)
-        };
-      }
-    });
-
-    // Wait for all voting requests to complete
-    const voteDetails = await Promise.all(votePromises);
-
-    // Count successful approvals
-    const approvalCount = voteDetails.filter(detail => detail.success && detail.response).length;
-
-    for (const detail of voteDetails) {
-      if (detail.success && detail.response) {
-        console.log(`✅ Vote approved by ${detail.clientId} (${approvalCount}/${requiredVotes})`);
-      } else if (detail.success && !detail.response) {
-        console.log(`❌ Vote rejected by ${detail.clientId}`);
-      } else {
-        console.log(`❌ Failed to get vote from ${detail.clientId}: ${detail.error}`);
+        console.log(`❌ Failed to get deployment targets: ${error}`);
+        throw new Error(`failed to get deployment targets: ${error}`);
       }
     }
 
-    // Create voting result
+    // Create final voting result
     const votingResult: VotingResult = {
-      taskId,
       totalTargets: targetAppIds.length,
       successfulVotes: approvalCount,
       requiredVotes,
-      votingComplete: approvalCount >= requiredVotes,
+      votingComplete: true,
       finalResult: '',
       voteDetails
     };
@@ -357,7 +422,7 @@ export class Client {
     if (approvalCount < requiredVotes) {
       votingResult.finalResult = 'REJECTED';
       console.log(`❌ Voting failed: only ${approvalCount}/${requiredVotes} approvals received`);
-      throw new Error(`voting failed: only ${approvalCount}/${requiredVotes} approvals received`);
+      return votingResult; // Don't throw error, just return result
     }
 
     // Generate signature
@@ -373,5 +438,99 @@ export class Client {
 
     console.log('✅ Voting and signing completed successfully');
     return votingResult;
+  }
+
+  // Helper method to send HTTP vote request to a target app
+  private async sendHTTPVoteRequest(target: DeploymentTarget, requestData: Uint8Array, additionalHeaders?: { [key: string]: string }): Promise<boolean> {
+    // Build endpoint URL - send to deployment-client on port 8090 for HTTP forwarding
+    // Format: http://deployment-host:8090/proxy/{app_id}{voting_sign_path}
+    const deploymentHost = target.deploymentClientAddress.split(':')[0]; // Extract host from gRPC address
+    let votingSignPath = target.votingSignPath;
+    if (!votingSignPath.startsWith('/')) {
+      votingSignPath = '/' + votingSignPath;
+    }
+
+    const proxyPath = `/proxy/${target.appID}${votingSignPath}`;
+    const endpoint = `http://${deploymentHost}:8090${proxyPath}`;
+
+    return new Promise((resolve, reject) => {
+      const http = require('http');
+      
+      const headers: { [key: string]: string } = {
+        'Content-Type': 'application/json'
+      };
+
+      // Add authentication headers if provided (for proxy forwarding)
+      if (target.authHeaders) {
+        Object.assign(headers, target.authHeaders);
+      }
+
+      // Add additional headers extracted from HTTP request
+      if (additionalHeaders) {
+        Object.assign(headers, additionalHeaders);
+      }
+
+      const options = {
+        method: 'POST',
+        headers,
+        timeout: this.timeout
+      };
+
+      console.log(`📤 Sending vote request to ${target.appID} via deployment-client: ${endpoint}`);
+      
+      const req = http.request(endpoint, options, (res: any) => {
+        let data = '';
+        
+        res.on('data', (chunk: any) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          // Check HTTP status
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP vote request failed with status ${res.statusCode}: ${data}`));
+            return;
+          }
+
+          try {
+            // Parse response - only check for approved field
+            const response = JSON.parse(data);
+            const approved = response.approved || false;
+            
+            console.log(`📥 Received vote response from ${target.appID}: approved=${approved}`);
+            resolve(approved);
+          } catch (error) {
+            reject(new Error(`failed to parse vote response: ${error}`));
+          }
+        });
+      });
+
+      req.on('error', (error: any) => {
+        reject(new Error(`HTTP vote request failed: ${error}`));
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('HTTP vote request timeout'));
+      });
+
+      // Send the request data
+      req.write(requestData);
+      req.end();
+    });
+  }
+
+  // Helper method to extract headers from HTTP request
+  private extractHeadersFromRequest(req: IncomingMessage): { [key: string]: string } {
+    const headers: { [key: string]: string } = {};
+    
+    for (const [name, value] of Object.entries(req.headers)) {
+      if (value) {
+        // Take first value if it's an array, otherwise use the string value
+        headers[name] = Array.isArray(value) ? value[0] : value;
+      }
+    }
+    
+    return headers;
   }
 }

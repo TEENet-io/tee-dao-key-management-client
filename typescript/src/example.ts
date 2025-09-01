@@ -60,23 +60,66 @@ async function main() {
     console.log('\n3. Multi-party voting signature');
     const targetAppIDs = ['secure-messaging-app', 'secure-messaging-app1', 'secure-messaging-app2'];
     const requiredVotes = 2;
-    const votingMessage = new TextEncoder().encode('Multi-party signature request test');
-    
+    const votingMessage = new TextEncoder().encode('test message for multi-party voting'); // Contains "test" to trigger approval
+
+    // Create request data similar to signature-tool
+    const messageBase64 = Buffer.from(votingMessage).toString('base64');
+    const requestData = {
+      message: messageBase64,
+      signer_app_id: appID,
+      target_app_ids: targetAppIDs,
+      required_votes: requiredVotes,
+      is_forwarded: false
+    };
+
+    const requestBody = Buffer.from(JSON.stringify(requestData));
+
+    // Create a mock HTTP request like signature-tool does
+    const { IncomingMessage } = require('http');
+    const mockReq = new IncomingMessage(null as any);
+    mockReq.method = 'POST';
+    mockReq.url = '/vote';
+    mockReq.headers = {
+      'content-type': 'application/json',
+      'user-agent': 'TEE-DAO-Client/1.0'
+    };
+    // Add body to request (simulating parsed body)
+    (mockReq as any).body = JSON.stringify(requestData);
+
+    // Local approval decision (same logic as signature-tool)
+    const localApproval = new TextDecoder().decode(votingMessage).toLowerCase().includes('test');
+
+    console.log('Voting request:');
+    console.log(`  - Message: ${new TextDecoder().decode(votingMessage)}`);
+    console.log(`  - Signer App ID: ${appID}`);
+    console.log(`  - Target App IDs: ${JSON.stringify(targetAppIDs)}`);
+    console.log(`  - Required Votes: ${requiredVotes}/${targetAppIDs.length}`);
+    console.log(`  - Local Approval: ${localApproval}`);
+
     try {
-      const votingResult = await client.votingSign(votingMessage, appID, targetAppIDs, requiredVotes);
-      console.log('Voting signature successful!');
-      console.log(`Task ID: ${votingResult.taskId}`);
-      console.log(`Votes received: ${votingResult.successfulVotes}/${votingResult.requiredVotes}`);
-      console.log(`Final result: ${votingResult.finalResult}`);
+      // Use VotingSign with the constructed HTTP request (matching Go version exactly)
+      const votingResult = await client.votingSign(mockReq, votingMessage, appID, targetAppIDs, requiredVotes, localApproval);
+      console.log('\nVoting signature completed!');
+      console.log(`Total Targets: ${votingResult.totalTargets}`);
+      console.log(`Successful Votes: ${votingResult.successfulVotes}/${votingResult.requiredVotes}`);
+      console.log(`Voting Complete: ${votingResult.votingComplete}`);
+      console.log(`Final Result: ${votingResult.finalResult}`);
+      
       if (votingResult.signature) {
         console.log(`Signature: ${Buffer.from(votingResult.signature).toString('hex')}`);
+      } else {
+        console.log('Signature: No signature (voting failed or incomplete)');
       }
-      console.log(`Vote details:`);
+      
+      // Print detailed vote results
+      console.log('\nVote Details:');
       votingResult.voteDetails.forEach((detail, index) => {
-        console.log(`  ${index + 1}. ${detail.clientId}: ${detail.success ? (detail.response ? 'APPROVED' : 'REJECTED') : 'FAILED'}`);
+        const status = detail.success ? (detail.response ? 'APPROVED' : 'REJECTED') : 'FAILED';
+        let output = `  ${index + 1}. ${detail.clientId}: ${status}`;
         if (detail.error) {
-          console.log(`     Error: ${detail.error}`);
+          output += ` (Error: ${detail.error})`;
         }
+        console.log(output);
       });
     } catch (error) {
       console.error(`Voting signature failed: ${error}`);

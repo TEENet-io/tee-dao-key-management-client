@@ -40,6 +40,7 @@ export interface DeploymentInfo {
   deployment_client_address: string;
   deployed_at: number;
   deployment_type: string;
+  voting_sign_path?: string;  // VotingSign API path
 }
 
 export interface GetDeploymentAddressesResponse {
@@ -173,7 +174,10 @@ export class AppIDClient {
         appID: appId,
         address,
         port,
-        containerIP: deployment.container_ip
+        containerIP: deployment.container_ip,
+        deploymentClientAddress: deployment.deployment_client_address,
+        votingSignPath: deployment.voting_sign_path || '',
+        httpBaseURL: deployment.deployment_host
       };
     }
     

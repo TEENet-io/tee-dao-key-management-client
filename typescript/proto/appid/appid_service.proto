@@ -49,5 +49,6 @@ message DeploymentInfo {
   string deployment_client_address = 6;  // Pre-constructed deployment-client gRPC address
   int64 deployed_at = 7;                 // Unix timestamp when deployed
   string deployment_type = 8;            // 'file', 'docker', or 'image_url'
+  string voting_sign_path = 9;           // VotingSign API path
 }
 

@@ -17,8 +17,11 @@ package client
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/config"
@@ -41,7 +44,6 @@ type VoteDetail struct {
 
 // VotingResult contains the result of a voting process
 type VotingResult struct {
-	TaskID          string       `json:"task_id"`
 	TotalTargets    int          `json:"total_targets"`
 	SuccessfulVotes int          `json:"successful_votes"`
 	RequiredVotes   int          `json:"required_votes"`
@@ -215,8 +217,57 @@ func (c *Client) GetPublicKeyByAppID(appID string) (publicKey, protocol, curve s
 	return c.userMgmtClient.GetPublicKeyByAppID(ctx, appID)
 }
 
-// VotingSign performs a voting process among specified app IDs and returns detailed results with signature if approved
-func (c *Client) VotingSign(message []byte, signerAppID string, targetAppIDs []string, requiredVotes int) (*VotingResult, error) {
+// VotingSign performs a voting process among specified app IDs using HTTP requests and returns detailed results with signature if approved
+func (c *Client) VotingSign(req *http.Request, message []byte, signerAppID string, targetAppIDs []string, requiredVotes int, localApproval bool) (*VotingResult, error) {
+	var headers map[string]string
+	var voteRequestData []byte
+	var err error
+	
+	// Extract headers and request body from HTTP request if provided
+	if req != nil {
+		headers = voting.ExtractHeadersFromRequest(req)
+		
+		// Read request body
+		voteRequestData, err = io.ReadAll(req.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read request body: %w", err)
+		}
+	}
+	
+	return c.VotingSignWithHeaders(message, signerAppID, targetAppIDs, requiredVotes, localApproval, voteRequestData, headers)
+}
+
+// VotingSignWithHeaders performs voting with custom headers forwarded to remote targets
+func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, targetAppIDs []string, requiredVotes int, localApproval bool, voteRequestData []byte, headers map[string]string) (*VotingResult, error) {
+	// Parse isForwarded from the request data
+	var requestMap map[string]interface{}
+	isForwarded := false
+	if json.Unmarshal(voteRequestData, &requestMap) == nil {
+		isForwarded, _ = requestMap["is_forwarded"].(bool)
+	}
+
+	// If this is a forwarded request, just return the local decision without further forwarding
+	if isForwarded {
+		log.Printf("🔄 Forwarded request - returning local decision: %t for app %s", localApproval, signerAppID)
+
+		result := &VotingResult{
+			TotalTargets:    1,
+			SuccessfulVotes: 0,
+			RequiredVotes:   requiredVotes,
+			VotingComplete:  localApproval,
+			VoteDetails:     []VoteDetail{{ClientID: signerAppID, Success: true, Response: localApproval}},
+		}
+
+		if localApproval {
+			result.FinalResult = "APPROVED"
+			result.SuccessfulVotes = 1
+		} else {
+			result.FinalResult = "REJECTED"
+		}
+
+		return result, nil
+	}
+
 	if len(targetAppIDs) == 0 {
 		return nil, fmt.Errorf("no target app IDs provided")
 	}
@@ -225,70 +276,97 @@ func (c *Client) VotingSign(message []byte, signerAppID string, targetAppIDs []s
 		return nil, fmt.Errorf("invalid required votes: %d (should be 1-%d)", requiredVotes, len(targetAppIDs))
 	}
 
-	taskID := fmt.Sprintf("vote_%s_%d", signerAppID, time.Now().UnixNano())
-	log.Printf("🗳️  Starting voting process: %s", taskID)
+	log.Printf("🗳️  Starting HTTP voting process for %s", signerAppID)
 	log.Printf("👥 Targets: %v, required votes: %d/%d", targetAppIDs, requiredVotes, len(targetAppIDs))
 
-	// Batch get deployment targets for all target app IDs
-	deploymentTargets, err := c.userMgmtClient.GetDeploymentTargetsForAppIDs(targetAppIDs, c.timeout)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment targets: %w", err)
-	}
-
-	// Send voting requests to all target app IDs concurrently
-	type voteResult struct {
-		appID    string
-		approved bool
-		err      error
-	}
-
-	resultChan := make(chan voteResult, len(targetAppIDs))
-	activeRequests := 0
-
-	// Start concurrent voting requests
-	for _, targetAppID := range targetAppIDs {
-		target, exists := deploymentTargets[targetAppID]
-		if !exists {
-			log.Printf("❌ No deployment target found for %s, skipping", targetAppID)
-			continue
-		}
-
-		activeRequests++
-		go func(appID string, deployTarget *usermgmt.DeploymentTarget) {
-			approved, err := voting.SendVotingRequestToDeployment(deployTarget, taskID, message, requiredVotes, len(targetAppIDs), c.timeout)
-			resultChan <- voteResult{appID: appID, approved: approved, err: err}
-		}(targetAppID, target)
-	}
-
-	// Collect results
-	voteDetails := make([]VoteDetail, 0, len(targetAppIDs))
+	// Initialize vote details with local vote
+	voteDetails := []VoteDetail{{ClientID: signerAppID, Success: true, Response: localApproval}}
 	approvalCount := 0
-
-	for i := 0; i < activeRequests; i++ {
-		result := <-resultChan
-
-		voteDetail := VoteDetail{
-			ClientID: result.appID,
-			Success:  result.err == nil,
-			Response: result.approved,
-		}
-
-		if result.err != nil {
-			voteDetail.Error = result.err.Error()
-			log.Printf("❌ Failed to get vote from %s: %v", result.appID, result.err)
-		} else if result.approved {
-			approvalCount++
-			log.Printf("✅ Vote approved by %s (%d/%d)", result.appID, approvalCount, requiredVotes)
-		} else {
-			log.Printf("❌ Vote rejected by %s", result.appID)
-		}
-
-		voteDetails = append(voteDetails, voteDetail)
+	if localApproval {
+		approvalCount = 1
 	}
 
-	// Create voting result
+	// Batch get deployment targets for remote app IDs (excluding self)
+	var remoteTargetAppIDs []string
+	for _, targetAppID := range targetAppIDs {
+		if targetAppID != signerAppID {
+			remoteTargetAppIDs = append(remoteTargetAppIDs, targetAppID)
+		}
+	}
+
+	// If there are remote targets, send voting requests
+	if len(remoteTargetAppIDs) > 0 {
+		log.Printf("🔍 Getting deployment targets for remote apps: %v", remoteTargetAppIDs)
+		deploymentTargets, err := c.userMgmtClient.GetDeploymentTargetsForAppIDs(remoteTargetAppIDs, c.timeout)
+		if err != nil {
+			log.Printf("❌ Failed to get deployment targets: %v", err)
+			return nil, fmt.Errorf("failed to get deployment targets: %w", err)
+		}
+		log.Printf("✅ Found %d deployment targets: %v", len(deploymentTargets), func() []string {
+			var keys []string
+			for k := range deploymentTargets {
+				keys = append(keys, k)
+			}
+			return keys
+		}())
+
+		// Send HTTP voting requests to remote targets concurrently
+		type voteResult struct {
+			appID    string
+			approved bool
+			err      error
+		}
+
+		resultChan := make(chan voteResult, len(remoteTargetAppIDs))
+		activeRequests := 0
+
+		// Start concurrent HTTP voting requests
+		for _, targetAppID := range remoteTargetAppIDs {
+			target, exists := deploymentTargets[targetAppID]
+			if !exists {
+				log.Printf("❌ No deployment target found for %s, skipping", targetAppID)
+				continue
+			}
+
+			activeRequests++
+			go func(appID string, deployTarget *usermgmt.DeploymentTarget) {
+				// Modify request body to mark as forwarded
+				modifiedRequestData, err := voting.MarkRequestAsForwarded(voteRequestData)
+				if err != nil {
+					resultChan <- voteResult{appID: appID, approved: false, err: fmt.Errorf("failed to modify request: %w", err)}
+					return
+				}
+				approved, err := voting.SendHTTPVoteRequestWithHeaders(deployTarget, modifiedRequestData, headers, c.timeout)
+				resultChan <- voteResult{appID: appID, approved: approved, err: err}
+			}(targetAppID, target)
+		}
+
+		// Collect remote voting results
+		for i := 0; i < activeRequests; i++ {
+			result := <-resultChan
+
+			voteDetail := VoteDetail{
+				ClientID: result.appID,
+				Success:  result.err == nil,
+				Response: result.approved,
+			}
+
+			if result.err != nil {
+				voteDetail.Error = result.err.Error()
+				log.Printf("❌ Failed to get vote from %s: %v", result.appID, result.err)
+			} else if result.approved {
+				approvalCount++
+				log.Printf("✅ Vote approved by %s (%d/%d)", result.appID, approvalCount, requiredVotes)
+			} else {
+				log.Printf("❌ Vote rejected by %s", result.appID)
+			}
+
+			voteDetails = append(voteDetails, voteDetail)
+		}
+	}
+
+	// Create final voting result
 	votingResult := &VotingResult{
-		TaskID:          taskID,
 		TotalTargets:    len(targetAppIDs),
 		SuccessfulVotes: approvalCount,
 		RequiredVotes:   requiredVotes,
@@ -300,7 +378,7 @@ func (c *Client) VotingSign(message []byte, signerAppID string, targetAppIDs []s
 	if approvalCount < requiredVotes {
 		votingResult.FinalResult = "REJECTED"
 		log.Printf("❌ Voting failed: only %d/%d approvals received", approvalCount, requiredVotes)
-		return votingResult, fmt.Errorf("voting failed: only %d/%d approvals received", approvalCount, requiredVotes)
+		return votingResult, nil
 	}
 
 	// Generate signature

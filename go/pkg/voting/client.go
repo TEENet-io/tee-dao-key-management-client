@@ -11,12 +11,18 @@
 //
 // -----------------------------------------------------------------------------
 
-// Package voting provides voting service client and server implementations
+// Package voting provides voting service server implementations
 package voting
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/usermgmt"
@@ -59,4 +65,114 @@ func SendVotingRequestToDeployment(target *usermgmt.DeploymentTarget, taskID str
 	}
 
 	return true, nil // Voting approved
+}
+
+// MarkRequestAsForwarded modifies the request body to set is_forwarded=true
+func MarkRequestAsForwarded(requestData []byte) ([]byte, error) {
+	var requestMap map[string]interface{}
+	if err := json.Unmarshal(requestData, &requestMap); err != nil {
+		return nil, fmt.Errorf("failed to parse request JSON: %w", err)
+	}
+
+	requestMap["is_forwarded"] = true
+
+	modifiedData, err := json.Marshal(requestMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal modified request: %w", err)
+	}
+
+	return modifiedData, nil
+}
+
+// SendHTTPVoteRequestWithHeaders sends a vote request to a target app via HTTP with custom headers
+func SendHTTPVoteRequestWithHeaders(target *usermgmt.DeploymentTarget, requestData []byte, headers map[string]string, timeout time.Duration) (bool, error) {
+
+	// Build endpoint URL - send to deployment-client on port 8090 for HTTP forwarding
+	// Format: http://deployment-host:8090/proxy/{app_id}{voting_sign_path}
+	votingSignPath := target.VotingSignPath
+	if !strings.HasPrefix(votingSignPath, "/") {
+		votingSignPath = "/" + votingSignPath
+	}
+
+	proxyPath := fmt.Sprintf("/proxy/%s%s", target.AppID, votingSignPath)
+	
+	// Extract host from DeploymentClientAddress (format: host:port)
+	deploymentHost := target.DeploymentClientAddress
+	if colonIndex := strings.LastIndex(deploymentHost, ":"); colonIndex != -1 {
+		deploymentHost = deploymentHost[:colonIndex] // Remove port, keep only host
+	}
+	
+	endpoint := fmt.Sprintf("http://%s:8090%s", deploymentHost, proxyPath)
+
+	// Create HTTP request with provided data
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(requestData))
+	if err != nil {
+		return false, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Set default headers
+	req.Header.Set("Content-Type", "application/json")
+
+	// Forward custom headers if provided
+	if headers != nil {
+		for key, value := range headers {
+			req.Header.Set(key, value)
+		}
+	}
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	// Send request
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	req = req.WithContext(ctx)
+
+	log.Printf("📤 Sending vote request to %s via deployment-client: %s", target.AppID, endpoint)
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("HTTP vote request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Check HTTP status
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("HTTP vote request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// Parse response - only check for approved field
+	var response map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &response); err != nil {
+		return false, fmt.Errorf("failed to parse vote response: %w", err)
+	}
+
+	approved, ok := response["approved"].(bool)
+	if !ok {
+		return false, fmt.Errorf("invalid response format: missing approved field")
+	}
+
+	log.Printf("📥 Received vote response from %s: approved=%t", target.AppID, approved)
+	return approved, nil
+}
+
+// ExtractHeadersFromRequest extracts all headers from HTTP request for forwarding
+func ExtractHeadersFromRequest(req *http.Request) map[string]string {
+	headers := make(map[string]string)
+
+	for name, values := range req.Header {
+		if len(values) > 0 {
+			headers[name] = values[0] // Take first value if multiple
+		}
+	}
+
+	return headers
 }

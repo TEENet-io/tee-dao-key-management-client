@@ -40,6 +40,8 @@ type DeploymentTarget struct {
 	AppID                   string
 	ContainerIP             string
 	DeploymentClientAddress string
+	VotingSignPath          string // HTTP API path for VotingSign requests
+	HTTPBaseURL             string // HTTP base URL for API forwarding
 }
 
 // NewClient creates a new user management gRPC client
@@ -140,6 +142,8 @@ func (c *Client) GetDeploymentTargetsForAppIDs(appIDs []string, timeout time.Dur
 			AppID:                   appID,
 			ContainerIP:             deployment.ContainerIp,
 			DeploymentClientAddress: deployment.DeploymentClientAddress,
+			VotingSignPath:          deployment.VotingSignPath,
+			HTTPBaseURL:             deployment.DeploymentHost, // Use deployment host as HTTP base URL
 		}
 	}
 

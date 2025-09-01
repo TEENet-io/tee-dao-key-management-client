@@ -68,7 +68,6 @@ export interface VoteDetail {
 
 // VotingResult contains the result of a voting process
 export interface VotingResult {
-  taskId: string;
   totalTargets: number;
   successfulVotes: number;
   requiredVotes: number;
@@ -104,6 +103,10 @@ export interface DeploymentTarget {
   address: string;
   port: number;
   containerIP: string;
+  deploymentClientAddress: string;  // gRPC deployment client address
+  votingSignPath: string;           // HTTP API path for VotingSign requests
+  httpBaseURL: string;              // HTTP base URL for API forwarding
+  authHeaders?: { [key: string]: string }; // Optional authentication headers
 }
 
 export const Constants = {

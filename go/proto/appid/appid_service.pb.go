@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        v3.5.0
-// source: appid_service.proto
+// source: proto/appid/appid_service.proto
 
 package appid
 
@@ -31,7 +31,7 @@ type GetPublicKeyByAppIDRequest struct {
 
 func (x *GetPublicKeyByAppIDRequest) Reset() {
 	*x = GetPublicKeyByAppIDRequest{}
-	mi := &file_appid_service_proto_msgTypes[0]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +43,7 @@ func (x *GetPublicKeyByAppIDRequest) String() string {
 func (*GetPublicKeyByAppIDRequest) ProtoMessage() {}
 
 func (x *GetPublicKeyByAppIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_appid_service_proto_msgTypes[0]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +56,7 @@ func (x *GetPublicKeyByAppIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicKeyByAppIDRequest.ProtoReflect.Descriptor instead.
 func (*GetPublicKeyByAppIDRequest) Descriptor() ([]byte, []int) {
-	return file_appid_service_proto_rawDescGZIP(), []int{0}
+	return file_proto_appid_appid_service_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GetPublicKeyByAppIDRequest) GetAppId() string {
@@ -78,7 +78,7 @@ type GetPublicKeyByAppIDResponse struct {
 
 func (x *GetPublicKeyByAppIDResponse) Reset() {
 	*x = GetPublicKeyByAppIDResponse{}
-	mi := &file_appid_service_proto_msgTypes[1]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -90,7 +90,7 @@ func (x *GetPublicKeyByAppIDResponse) String() string {
 func (*GetPublicKeyByAppIDResponse) ProtoMessage() {}
 
 func (x *GetPublicKeyByAppIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_appid_service_proto_msgTypes[1]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -103,7 +103,7 @@ func (x *GetPublicKeyByAppIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPublicKeyByAppIDResponse.ProtoReflect.Descriptor instead.
 func (*GetPublicKeyByAppIDResponse) Descriptor() ([]byte, []int) {
-	return file_appid_service_proto_rawDescGZIP(), []int{1}
+	return file_proto_appid_appid_service_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GetPublicKeyByAppIDResponse) GetPublickey() string {
@@ -138,7 +138,7 @@ type GetDeploymentAddressesRequest struct {
 
 func (x *GetDeploymentAddressesRequest) Reset() {
 	*x = GetDeploymentAddressesRequest{}
-	mi := &file_appid_service_proto_msgTypes[2]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -150,7 +150,7 @@ func (x *GetDeploymentAddressesRequest) String() string {
 func (*GetDeploymentAddressesRequest) ProtoMessage() {}
 
 func (x *GetDeploymentAddressesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_appid_service_proto_msgTypes[2]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -163,7 +163,7 @@ func (x *GetDeploymentAddressesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDeploymentAddressesRequest.ProtoReflect.Descriptor instead.
 func (*GetDeploymentAddressesRequest) Descriptor() ([]byte, []int) {
-	return file_appid_service_proto_rawDescGZIP(), []int{2}
+	return file_proto_appid_appid_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetDeploymentAddressesRequest) GetAppIds() []string {
@@ -183,7 +183,7 @@ type GetDeploymentAddressesResponse struct {
 
 func (x *GetDeploymentAddressesResponse) Reset() {
 	*x = GetDeploymentAddressesResponse{}
-	mi := &file_appid_service_proto_msgTypes[3]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +195,7 @@ func (x *GetDeploymentAddressesResponse) String() string {
 func (*GetDeploymentAddressesResponse) ProtoMessage() {}
 
 func (x *GetDeploymentAddressesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_appid_service_proto_msgTypes[3]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,7 +208,7 @@ func (x *GetDeploymentAddressesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDeploymentAddressesResponse.ProtoReflect.Descriptor instead.
 func (*GetDeploymentAddressesResponse) Descriptor() ([]byte, []int) {
-	return file_appid_service_proto_rawDescGZIP(), []int{3}
+	return file_proto_appid_appid_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetDeploymentAddressesResponse) GetDeployments() map[string]*DeploymentInfo {
@@ -236,13 +236,14 @@ type DeploymentInfo struct {
 	DeploymentClientAddress string                 `protobuf:"bytes,6,opt,name=deployment_client_address,json=deploymentClientAddress,proto3" json:"deployment_client_address,omitempty"` // Pre-constructed deployment-client gRPC address
 	DeployedAt              int64                  `protobuf:"varint,7,opt,name=deployed_at,json=deployedAt,proto3" json:"deployed_at,omitempty"`                                         // Unix timestamp when deployed
 	DeploymentType          string                 `protobuf:"bytes,8,opt,name=deployment_type,json=deploymentType,proto3" json:"deployment_type,omitempty"`                              // 'file', 'docker', or 'image_url'
+	VotingSignPath          string                 `protobuf:"bytes,9,opt,name=voting_sign_path,json=votingSignPath,proto3" json:"voting_sign_path,omitempty"`                            // VotingSign API path
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
 
 func (x *DeploymentInfo) Reset() {
 	*x = DeploymentInfo{}
-	mi := &file_appid_service_proto_msgTypes[4]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -254,7 +255,7 @@ func (x *DeploymentInfo) String() string {
 func (*DeploymentInfo) ProtoMessage() {}
 
 func (x *DeploymentInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_appid_service_proto_msgTypes[4]
+	mi := &file_proto_appid_appid_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -267,7 +268,7 @@ func (x *DeploymentInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentInfo.ProtoReflect.Descriptor instead.
 func (*DeploymentInfo) Descriptor() ([]byte, []int) {
-	return file_appid_service_proto_rawDescGZIP(), []int{4}
+	return file_proto_appid_appid_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *DeploymentInfo) GetAppId() string {
@@ -326,11 +327,18 @@ func (x *DeploymentInfo) GetDeploymentType() string {
 	return ""
 }
 
-var File_appid_service_proto protoreflect.FileDescriptor
+func (x *DeploymentInfo) GetVotingSignPath() string {
+	if x != nil {
+		return x.VotingSignPath
+	}
+	return ""
+}
 
-const file_appid_service_proto_rawDesc = "" +
+var File_proto_appid_appid_service_proto protoreflect.FileDescriptor
+
+const file_proto_appid_appid_service_proto_rawDesc = "" +
 	"\n" +
-	"\x13appid_service.proto\x12\x05appid\"3\n" +
+	"\x1fproto/appid/appid_service.proto\x12\x05appid\"3\n" +
 	"\x1aGetPublicKeyByAppIDRequest\x12\x15\n" +
 	"\x06app_id\x18\x01 \x01(\tR\x05appId\"m\n" +
 	"\x1bGetPublicKeyByAppIDResponse\x12\x1c\n" +
@@ -344,7 +352,7 @@ const file_appid_service_proto_rawDesc = "" +
 	"\tnot_found\x18\x02 \x03(\tR\bnotFound\x1aU\n" +
 	"\x10DeploymentsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
-	"\x05value\x18\x02 \x01(\v2\x15.appid.DeploymentInfoR\x05value:\x028\x01\"\xbf\x02\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.appid.DeploymentInfoR\x05value:\x028\x01\"\xe9\x02\n" +
 	"\x0eDeploymentInfo\x12\x15\n" +
 	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12!\n" +
 	"\fproject_name\x18\x02 \x01(\tR\vprojectName\x12'\n" +
@@ -354,26 +362,27 @@ const file_appid_service_proto_rawDesc = "" +
 	"\x19deployment_client_address\x18\x06 \x01(\tR\x17deploymentClientAddress\x12\x1f\n" +
 	"\vdeployed_at\x18\a \x01(\x03R\n" +
 	"deployedAt\x12'\n" +
-	"\x0fdeployment_type\x18\b \x01(\tR\x0edeploymentType2\xd3\x01\n" +
+	"\x0fdeployment_type\x18\b \x01(\tR\x0edeploymentType\x12(\n" +
+	"\x10voting_sign_path\x18\t \x01(\tR\x0evotingSignPath2\xd3\x01\n" +
 	"\fAppIDService\x12\\\n" +
 	"\x13GetPublicKeyByAppID\x12!.appid.GetPublicKeyByAppIDRequest\x1a\".appid.GetPublicKeyByAppIDResponse\x12e\n" +
 	"\x16GetDeploymentAddresses\x12$.appid.GetDeploymentAddressesRequest\x1a%.appid.GetDeploymentAddressesResponseB\n" +
 	"Z\b./;appidb\x06proto3"
 
 var (
-	file_appid_service_proto_rawDescOnce sync.Once
-	file_appid_service_proto_rawDescData []byte
+	file_proto_appid_appid_service_proto_rawDescOnce sync.Once
+	file_proto_appid_appid_service_proto_rawDescData []byte
 )
 
-func file_appid_service_proto_rawDescGZIP() []byte {
-	file_appid_service_proto_rawDescOnce.Do(func() {
-		file_appid_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_appid_service_proto_rawDesc), len(file_appid_service_proto_rawDesc)))
+func file_proto_appid_appid_service_proto_rawDescGZIP() []byte {
+	file_proto_appid_appid_service_proto_rawDescOnce.Do(func() {
+		file_proto_appid_appid_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_appid_appid_service_proto_rawDesc), len(file_proto_appid_appid_service_proto_rawDesc)))
 	})
-	return file_appid_service_proto_rawDescData
+	return file_proto_appid_appid_service_proto_rawDescData
 }
 
-var file_appid_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_appid_service_proto_goTypes = []any{
+var file_proto_appid_appid_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_proto_appid_appid_service_proto_goTypes = []any{
 	(*GetPublicKeyByAppIDRequest)(nil),     // 0: appid.GetPublicKeyByAppIDRequest
 	(*GetPublicKeyByAppIDResponse)(nil),    // 1: appid.GetPublicKeyByAppIDResponse
 	(*GetDeploymentAddressesRequest)(nil),  // 2: appid.GetDeploymentAddressesRequest
@@ -381,7 +390,7 @@ var file_appid_service_proto_goTypes = []any{
 	(*DeploymentInfo)(nil),                 // 4: appid.DeploymentInfo
 	nil,                                    // 5: appid.GetDeploymentAddressesResponse.DeploymentsEntry
 }
-var file_appid_service_proto_depIdxs = []int32{
+var file_proto_appid_appid_service_proto_depIdxs = []int32{
 	5, // 0: appid.GetDeploymentAddressesResponse.deployments:type_name -> appid.GetDeploymentAddressesResponse.DeploymentsEntry
 	4, // 1: appid.GetDeploymentAddressesResponse.DeploymentsEntry.value:type_name -> appid.DeploymentInfo
 	0, // 2: appid.AppIDService.GetPublicKeyByAppID:input_type -> appid.GetPublicKeyByAppIDRequest
@@ -395,26 +404,26 @@ var file_appid_service_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_appid_service_proto_init() }
-func file_appid_service_proto_init() {
-	if File_appid_service_proto != nil {
+func init() { file_proto_appid_appid_service_proto_init() }
+func file_proto_appid_appid_service_proto_init() {
+	if File_proto_appid_appid_service_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_appid_service_proto_rawDesc), len(file_appid_service_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_appid_appid_service_proto_rawDesc), len(file_proto_appid_appid_service_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_appid_service_proto_goTypes,
-		DependencyIndexes: file_appid_service_proto_depIdxs,
-		MessageInfos:      file_appid_service_proto_msgTypes,
+		GoTypes:           file_proto_appid_appid_service_proto_goTypes,
+		DependencyIndexes: file_proto_appid_appid_service_proto_depIdxs,
+		MessageInfos:      file_proto_appid_appid_service_proto_msgTypes,
 	}.Build()
-	File_appid_service_proto = out.File
-	file_appid_service_proto_goTypes = nil
-	file_appid_service_proto_depIdxs = nil
+	File_proto_appid_appid_service_proto = out.File
+	file_proto_appid_appid_service_proto_goTypes = nil
+	file_proto_appid_appid_service_proto_depIdxs = nil
 }
