@@ -293,15 +293,50 @@ func main() {
 		
 		// Pass HTTP request to VotingSign - it will extract headers and request body automatically
 		// Use req.SignerAppID as the one requesting signature
-		votingResult, err := teeClient.VotingSign(c.Request, messageBytes, req.SignerAppID, req.TargetAppIDs, req.RequiredVotes, localApproval)
+		// Target App IDs and required votes are now fetched from server configuration
+		votingResult, err := teeClient.VotingSign(c.Request, messageBytes, req.SignerAppID, localApproval)
 		if err != nil {
 			log.Printf("❌ [%s] VotingSign failed: %v", defaultAppID, err)
-			c.JSON(http.StatusOK, gin.H{
-				"success":  true,
-				"approved": false,
-				"app_id":   defaultAppID,
-				"message":  fmt.Sprintf("VotingSign failed: %v", err),
-			})
+			
+			// Check if we have partial voting results (e.g., voting passed but signature failed)
+			if votingResult != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success":  true,
+					"approved": false,
+					"app_id":   defaultAppID,
+					"message":  fmt.Sprintf("VotingSign failed: %v", err),
+					"voting_results": gin.H{
+						"voting_complete":  votingResult.VotingComplete,
+						"successful_votes": votingResult.SuccessfulVotes,
+						"required_votes":   votingResult.RequiredVotes,
+						"total_targets":    votingResult.TotalTargets,
+						"final_result":     votingResult.FinalResult,
+						"vote_details":     votingResult.VoteDetails,
+						"error":           err.Error(),
+					},
+					"signature": "",
+					"timestamp": time.Now().Format(time.RFC3339),
+				})
+			} else {
+				// No voting results at all (e.g., configuration error)
+				c.JSON(http.StatusOK, gin.H{
+					"success":  true,
+					"approved": false,
+					"app_id":   defaultAppID,
+					"message":  fmt.Sprintf("VotingSign failed: %v", err),
+					"voting_results": gin.H{
+						"voting_complete":  false,
+						"successful_votes": 0,
+						"required_votes":   0,
+						"total_targets":    0,
+						"final_result":     "ERROR",
+						"vote_details":     []interface{}{},
+						"error":           err.Error(),
+					},
+					"signature": "",
+					"timestamp": time.Now().Format(time.RFC3339),
+				})
+			}
 			return
 		}
 

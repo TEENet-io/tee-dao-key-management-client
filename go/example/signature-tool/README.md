@@ -37,6 +37,7 @@ signature-tool/
 - Go 1.24 or higher
 - TEENet TEE Configuration Server
 - 有效的App ID配置
+- 服务器端配置的VotingSign项目（用于自动获取投票目标和阈值）
 
 ## 安装部署
 
@@ -138,11 +139,11 @@ Content-Type: application/json
 
 {
   "message": "dGVzdA==",
-  "signer_app_id": "app-1",
-  "target_app_ids": ["app-1", "app-2", "app-3"],
-  "required_votes": 2
+  "signer_app_id": "app-1"
 }
 ```
+
+**注意**: 目标应用ID列表（target_app_ids）和所需票数（required_votes）现在由服务器根据VotingSign项目配置自动获取，无需在请求中指定。
 
 **响应格式**:
 ```json
@@ -184,11 +185,12 @@ Content-Type: application/json
 
 ### 核心特性
 
-1. **M-of-N阈值投票**: 配置所需通过票数，如3个节点中需要2票通过
-2. **并发投票处理**: 同时向所有目标应用发送投票请求
-3. **完整响应收集**: 等待所有投票响应，提供详细的投票状态
-4. **自动签名生成**: 投票通过后自动生成签名
-5. **防循环机制**: 通过`is_forwarded`标记防止投票请求无限循环
+1. **M-of-N阈值投票**: 服务器自动配置所需通过票数
+2. **自动目标发现**: 从服务器获取参与投票的节点列表
+3. **并发投票处理**: 同时向所有目标应用发送投票请求
+4. **完整响应收集**: 等待所有投票响应，提供详细的投票状态
+5. **自动签名生成**: 投票通过后自动生成签名
+6. **防循环机制**: 通过`is_forwarded`标记防止投票请求无限循环
 
 ### 投票流程图
 

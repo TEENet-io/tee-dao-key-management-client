@@ -175,31 +175,10 @@ function checkMessageApproval() {
 // Voting functionality
 async function initiateVoting() {
     const message = document.getElementById('votingMessage').value.trim();
-    const targetAppIds = document.getElementById('targetAppIds').value.trim();
-    const requiredVotes = parseInt(document.getElementById('requiredVotes').value);
     const resultDiv = document.getElementById('votingResult');
     
-    if (!message || !targetAppIds) {
-        showResult(resultDiv, 'Please fill in all required fields', 'error');
-        return;
-    }
-    
-
-    // Parse target app IDs (one per line)
-    const targetAppIdArray = targetAppIds.split('\n').map(id => id.trim()).filter(id => id.length > 0);
-    
-    if (targetAppIdArray.length === 0) {
-        showResult(resultDiv, 'Please enter at least one target App ID', 'error');
-        return;
-    }
-
-    // Update total participants
-    const totalParticipants = targetAppIdArray.length;
-    document.getElementById('totalParticipants').value = totalParticipants;
-    document.getElementById('participantCount').textContent = totalParticipants;
-
-    if (requiredVotes > totalParticipants) {
-        showResult(resultDiv, 'Required votes cannot exceed total participants', 'error');
+    if (!message) {
+        showResult(resultDiv, 'Please enter a message to sign', 'error');
         return;
     }
 
@@ -214,15 +193,17 @@ async function initiateVoting() {
             body: JSON.stringify({
                 message: btoa(message), // base64 encode
                 signer_app_id: getAppId(),
-                required_votes: requiredVotes,
-                target_app_ids: targetAppIdArray,
                 is_forwarded: false
+                // Target app IDs and required votes are fetched from server
             })
         });
 
         const data = await response.json();
         
         if (data.success) {
+            // Check if there's an error in voting_results
+            const hasError = data.voting_results?.error;
+            
             const result = JSON.stringify({
                 voting_complete: data.voting_results?.voting_complete,
                 successful_votes: data.voting_results?.successful_votes,
@@ -231,9 +212,12 @@ async function initiateVoting() {
                 final_result: data.voting_results?.final_result,
                 vote_details: data.voting_results?.vote_details || [],
                 signature: data.signature || 'No signature',
-                timestamp: data.timestamp
+                timestamp: data.timestamp,
+                error: hasError ? data.voting_results.error : undefined
             }, null, 2);
-            showResult(resultDiv, result, 'success');
+            
+            // Show as error if there's an error field, otherwise as success
+            showResult(resultDiv, result, hasError ? 'error' : 'success');
             
             // Auto-fill voting verification form if voting was successful
             if (data.signature) {
@@ -249,22 +233,6 @@ async function initiateVoting() {
     }
 }
 
-// Auto-update participant count when target app IDs change
-function updateParticipantCount() {
-    const targetAppIds = document.getElementById('targetAppIds').value.trim();
-    const targetAppIdArray = targetAppIds.split('\n').map(id => id.trim()).filter(id => id.length > 0);
-    const count = targetAppIdArray.length || 1;
-    
-    document.getElementById('totalParticipants').value = count;
-    document.getElementById('participantCount').textContent = count;
-    
-    // Update required votes if it exceeds participant count
-    const requiredVotesInput = document.getElementById('requiredVotes');
-    if (parseInt(requiredVotesInput.value) > count) {
-        requiredVotesInput.value = count;
-    }
-    requiredVotesInput.max = count;
-}
 
 // Verify voting signature
 async function verifyVotingSignature() {

@@ -10,7 +10,7 @@ WORKDIR /app
 # Copy go module files first for better caching
 COPY go.mod go.sum ./
 
-# Download dependencies
+# Download dependencies from remote repository
 RUN go mod download
 
 # Copy source code (all .go files for modular structure)

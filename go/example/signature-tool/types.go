@@ -25,8 +25,7 @@ type ECDSASignature struct {
 type IncomingVoteRequest struct {
 	Message           string   `json:"message" binding:"required"`           // Base64 encoded message
 	SignerAppID       string   `json:"signer_app_id" binding:"required"`     // The app requesting the signature
-	RequiredVotes     int      `json:"required_votes" binding:"required"`
-	TargetAppIDs      []string `json:"target_app_ids,omitempty"`             // Target apps for further voting
+	// Target App IDs and Required Votes are now fetched from server configuration
 }
 
 

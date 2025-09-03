@@ -2,6 +2,8 @@
 
 A comprehensive TEENet distributed key management client library with multi-language support and distributed voting signature mechanism, including a complete local testing environment.
 
+> **⚠️ Breaking Change in v2.0**: The `VotingSign` API has been simplified. Target app IDs and required votes are now automatically fetched from server configuration. See [Latest Updates](#-latest-updates-v20) for details.
+
 ## 🚀 Core Components
 
 ### 1. Client Libraries
@@ -23,7 +25,8 @@ A comprehensive TEENet distributed key management client library with multi-lang
 ## ✨ Key Features
 
 ### Distributed Voting Signatures
-- **M-of-N Threshold Voting**: Configurable voting requirements (e.g., 2-of-3, 3-of-5)
+- **Server-Configured Voting**: Target nodes and required votes automatically fetched from server
+- **M-of-N Threshold Voting**: Server-configured voting requirements based on project settings
 - **Concurrent Processing**: Simultaneous voting requests to all target nodes
 - **Complete Collection**: Waits for all voting responses with detailed status
 - **Automatic Signing**: Generates cryptographic signatures upon voting approval
@@ -113,10 +116,12 @@ cd mock-server
           ├─────────────────────►│                      │                      │
           │ {                    │                      │                      │
           │   message,           │                      │                      │
-          │   signer_app_id,     │                      │                      │
-          │   target_app_ids,    │                      │                      │
-          │   required_votes     │                      │                      │
+          │   signer_app_id      │                      │                      │
           │ }                    │                      │                      │
+          │                      │                      │                      │
+          │ (target_app_ids and │                      │                      │
+          │ required_votes are  │                      │                      │
+          │ fetched from server)│                      │                      │
           │                      │                      │                      │
           │                      │ 2. VotingSign()      │                      │
           │                      ├─────────────────────►│                      │
@@ -170,7 +175,8 @@ cd mock-server
 ```
 
 ### Key Features
-- **M-of-N Threshold**: Configurable voting requirements (e.g., 2-of-3, 3-of-5)
+- **Server-Driven Configuration**: Target nodes and voting threshold from server settings
+- **M-of-N Threshold**: Server-configured voting requirements
 - **Concurrent Processing**: Parallel voting requests to all target nodes
 - **Complete Collection**: Waits for all responses before making decisions
 - **Detailed Tracking**: Records each node's voting status and errors
@@ -242,18 +248,19 @@ func main() {
     }
 
     // Example 3: Distributed voting signature
-    targetAppIDs := []string{"secure-messaging-app", "financial-trading-platform", "digital-identity-service"}
-    requiredVotes := 2
     votingMessage := []byte("test message for multi-party voting") // Contains "test" to trigger approval
     localApproval := true
     
+    // Note: Target app IDs and required votes are now fetched from server configuration
+    
     // Create a mock HTTP request like signature-tool does
-    requestBody := []byte(`{"message":"dGVzdCBtZXNzYWdlIGZvciBtdWx0aS1wYXJ0eSB2b3Rpbmc=","signer_app_id":"secure-messaging-app","target_app_ids":["secure-messaging-app","financial-trading-platform","digital-identity-service"],"required_votes":2,"is_forwarded":false}`)
+    requestBody := []byte(`{"message":"dGVzdCBtZXNzYWdlIGZvciBtdWx0aS1wYXJ0eSB2b3Rpbmc=","signer_app_id":"secure-messaging-app","is_forwarded":false}`)
     req, _ := http.NewRequest("POST", "/vote", bytes.NewBuffer(requestBody))
     req.Header.Set("Content-Type", "application/json")
     req.Header.Set("User-Agent", "TEE-DAO-Client/1.0")
     
-    votingResult, err := client.VotingSign(req, votingMessage, appID, targetAppIDs, requiredVotes, localApproval)
+    // VotingSign now fetches target app IDs and required votes from server
+    votingResult, err := client.VotingSign(req, votingMessage, appID, localApproval)
     if err != nil {
         log.Printf("Voting signature failed: %v", err)
     } else {
@@ -329,10 +336,10 @@ async function main() {
     }
 
     // Example 3: Distributed voting signature
-    const targetAppIDs = ['secure-messaging-app', 'financial-trading-platform', 'digital-identity-service'];
-    const requiredVotes = 2;
     const votingMessage = new TextEncoder().encode('test message for multi-party voting'); // Contains "test" to trigger approval
     const localApproval = true;
+    
+    // Note: Target app IDs and required votes are now fetched from server configuration
     
     // Create a mock HTTP request like signature-tool does
     const { IncomingMessage } = require('http');
@@ -346,13 +353,12 @@ async function main() {
     (mockReq as any).body = JSON.stringify({
       message: Buffer.from(votingMessage).toString('base64'),
       signer_app_id: appID,
-      target_app_ids: targetAppIDs,
-      required_votes: requiredVotes,
       is_forwarded: false
     });
     
     try {
-      const votingResult = await client.votingSign(mockReq, votingMessage, appID, targetAppIDs, requiredVotes, localApproval);
+      // VotingSign now fetches target app IDs and required votes from server
+      const votingResult = await client.votingSign(mockReq, votingMessage, appID, localApproval);
       console.log('Voting signature successful!');
       console.log(`Votes received: ${votingResult.successfulVotes}/${votingResult.requiredVotes}`);
       console.log(`Final result: ${votingResult.finalResult}`);
@@ -407,7 +413,8 @@ await client.init();
 req, _ := http.NewRequest("POST", "/vote", bytes.NewBuffer(requestBody))
 req.Header.Set("Content-Type", "application/json")
 
-votingResult, err := client.VotingSign(req, message, signerAppID, targetAppIDs, requiredVotes, localApproval)
+// Target app IDs and required votes are now fetched from server
+votingResult, err := client.VotingSign(req, message, signerAppID, localApproval)
 ```
 
 **TypeScript (new signature with HTTP request support):**
@@ -418,7 +425,8 @@ mockReq.method = 'POST';
 mockReq.url = '/vote';
 mockReq.headers = { 'content-type': 'application/json' };
 
-const votingResult = await client.votingSign(mockReq, message, signerAppId, targetAppIds, requiredVotes, localApproval)
+// Target app IDs and required votes are now fetched from server
+const votingResult = await client.votingSign(mockReq, message, signerAppId, localApproval)
 ```
 
 ### AppID Service Methods
@@ -497,15 +505,26 @@ signature, err := client.SignWithAppID(message, appID)
 - **TEENet Signature Tool**: See [go/example/signature-tool/](go/example/signature-tool/) for detailed documentation
 - **Mock Server**: See [mock-server/README.md](mock-server/README.md) for detailed documentation
 
-## Latest Architecture Optimizations
+## 🆕 Latest Updates (v2.0)
+
+### ⭐ Major API Changes
+1. **Automatic Server Configuration**: `VotingSign` no longer requires `target_app_ids` and `required_votes` parameters
+   - **Before**: `client.VotingSign(req, message, signerAppID, targetAppIDs, requiredVotes, localApproval)`
+   - **After**: `client.VotingSign(req, message, signerAppID, localApproval)`
+   - Target nodes and voting threshold are now fetched from server-side VotingSign project configuration
+
+2. **Simplified Integration**: Voting configuration is managed centrally on the server
+   - No need to hardcode target App IDs in client code
+   - Voting threshold automatically determined by server settings
+   - More flexible and easier to maintain
 
 ### Distributed Voting System Improvements
-1. **HTTP Request Integration**: `VotingSign` now accepts HTTP request objects for better header and body handling
-2. **Unified API Signature**: Both Go and TypeScript versions now have identical method signatures
-3. **Smart Vote Filtering**: Only shows votes from target App IDs, excludes local vote when not in target list
-4. **Correct Signer**: Uses `signer_app_id` as signature generator, not receiver
-5. **Cleaned Data Structures**: Removed unnecessary fields like `TaskID` and `TotalParticipants`
-6. **Cache-Free Deployment**: Web application supports zero-cache deployment, no need to manually clear browser cache
+1. **Server-Driven Configuration**: Target nodes and voting requirements from server settings
+2. **HTTP Request Integration**: `VotingSign` accepts HTTP request objects for better header and body handling
+3. **Unified API Signature**: Both Go and TypeScript versions have identical method signatures
+4. **Smart Vote Filtering**: Only shows votes from target App IDs, excludes local vote when not in target list
+5. **Correct Signer**: Uses `signer_app_id` as signature generator, not receiver
+6. **Cache-Free Deployment**: Web application supports zero-cache deployment
 7. **Improved Success Conditions**: Clear indication that messages containing "test" will succeed, others will fail
 
 ### Technical Features
