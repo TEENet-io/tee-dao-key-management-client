@@ -131,7 +131,7 @@ func (x *GetPublicKeyByAppIDResponse) GetCurve() string {
 // GetDeploymentAddressesRequest for voting coordinator to get deployment-client addresses
 type GetDeploymentAddressesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AppIds        []string               `protobuf:"bytes,1,rep,name=app_ids,json=appIds,proto3" json:"app_ids,omitempty"` // App IDs to get deployment addresses for
+	AppId         string                 `protobuf:"bytes,1,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"` // Single App ID to get all target deployment addresses for
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -166,19 +166,21 @@ func (*GetDeploymentAddressesRequest) Descriptor() ([]byte, []int) {
 	return file_proto_appid_appid_service_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetDeploymentAddressesRequest) GetAppIds() []string {
+func (x *GetDeploymentAddressesRequest) GetAppId() string {
 	if x != nil {
-		return x.AppIds
+		return x.AppId
 	}
-	return nil
+	return ""
 }
 
 type GetDeploymentAddressesResponse struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	Deployments   map[string]*DeploymentInfo `protobuf:"bytes,1,rep,name=deployments,proto3" json:"deployments,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // app_id -> deployment info
-	NotFound      []string                   `protobuf:"bytes,2,rep,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`                                                                 // App IDs that were not found or not deployed
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState     `protogen:"open.v1"`
+	Deployments    map[string]*DeploymentInfo `protobuf:"bytes,1,rep,name=deployments,proto3" json:"deployments,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // app_id -> deployment info
+	NotFound       []string                   `protobuf:"bytes,2,rep,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`                                                                 // App IDs that were not found or not deployed
+	VotingSignPath string                     `protobuf:"bytes,3,opt,name=voting_sign_path,json=votingSignPath,proto3" json:"voting_sign_path,omitempty"`                                             // Shared VotingSign API path for all instances
+	RequiredVotes  int32                      `protobuf:"varint,4,opt,name=required_votes,json=requiredVotes,proto3" json:"required_votes,omitempty"`                                                 // Shared required votes for all instances
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetDeploymentAddressesResponse) Reset() {
@@ -225,6 +227,20 @@ func (x *GetDeploymentAddressesResponse) GetNotFound() []string {
 	return nil
 }
 
+func (x *GetDeploymentAddressesResponse) GetVotingSignPath() string {
+	if x != nil {
+		return x.VotingSignPath
+	}
+	return ""
+}
+
+func (x *GetDeploymentAddressesResponse) GetRequiredVotes() int32 {
+	if x != nil {
+		return x.RequiredVotes
+	}
+	return 0
+}
+
 // DeploymentInfo represents deployment information for an app
 type DeploymentInfo struct {
 	state                   protoimpl.MessageState `protogen:"open.v1"`
@@ -236,7 +252,6 @@ type DeploymentInfo struct {
 	DeploymentClientAddress string                 `protobuf:"bytes,6,opt,name=deployment_client_address,json=deploymentClientAddress,proto3" json:"deployment_client_address,omitempty"` // Pre-constructed deployment-client gRPC address
 	DeployedAt              int64                  `protobuf:"varint,7,opt,name=deployed_at,json=deployedAt,proto3" json:"deployed_at,omitempty"`                                         // Unix timestamp when deployed
 	DeploymentType          string                 `protobuf:"bytes,8,opt,name=deployment_type,json=deploymentType,proto3" json:"deployment_type,omitempty"`                              // 'file', 'docker', or 'image_url'
-	VotingSignPath          string                 `protobuf:"bytes,9,opt,name=voting_sign_path,json=votingSignPath,proto3" json:"voting_sign_path,omitempty"`                            // VotingSign API path
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -327,13 +342,6 @@ func (x *DeploymentInfo) GetDeploymentType() string {
 	return ""
 }
 
-func (x *DeploymentInfo) GetVotingSignPath() string {
-	if x != nil {
-		return x.VotingSignPath
-	}
-	return ""
-}
-
 var File_proto_appid_appid_service_proto protoreflect.FileDescriptor
 
 const file_proto_appid_appid_service_proto_rawDesc = "" +
@@ -344,15 +352,17 @@ const file_proto_appid_appid_service_proto_rawDesc = "" +
 	"\x1bGetPublicKeyByAppIDResponse\x12\x1c\n" +
 	"\tpublickey\x18\x01 \x01(\tR\tpublickey\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x14\n" +
-	"\x05curve\x18\x03 \x01(\tR\x05curve\"8\n" +
-	"\x1dGetDeploymentAddressesRequest\x12\x17\n" +
-	"\aapp_ids\x18\x01 \x03(\tR\x06appIds\"\xee\x01\n" +
+	"\x05curve\x18\x03 \x01(\tR\x05curve\"6\n" +
+	"\x1dGetDeploymentAddressesRequest\x12\x15\n" +
+	"\x06app_id\x18\x01 \x01(\tR\x05appId\"\xbf\x02\n" +
 	"\x1eGetDeploymentAddressesResponse\x12X\n" +
 	"\vdeployments\x18\x01 \x03(\v26.appid.GetDeploymentAddressesResponse.DeploymentsEntryR\vdeployments\x12\x1b\n" +
-	"\tnot_found\x18\x02 \x03(\tR\bnotFound\x1aU\n" +
+	"\tnot_found\x18\x02 \x03(\tR\bnotFound\x12(\n" +
+	"\x10voting_sign_path\x18\x03 \x01(\tR\x0evotingSignPath\x12%\n" +
+	"\x0erequired_votes\x18\x04 \x01(\x05R\rrequiredVotes\x1aU\n" +
 	"\x10DeploymentsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
-	"\x05value\x18\x02 \x01(\v2\x15.appid.DeploymentInfoR\x05value:\x028\x01\"\xe9\x02\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.appid.DeploymentInfoR\x05value:\x028\x01\"\xbf\x02\n" +
 	"\x0eDeploymentInfo\x12\x15\n" +
 	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12!\n" +
 	"\fproject_name\x18\x02 \x01(\tR\vprojectName\x12'\n" +
@@ -362,8 +372,7 @@ const file_proto_appid_appid_service_proto_rawDesc = "" +
 	"\x19deployment_client_address\x18\x06 \x01(\tR\x17deploymentClientAddress\x12\x1f\n" +
 	"\vdeployed_at\x18\a \x01(\x03R\n" +
 	"deployedAt\x12'\n" +
-	"\x0fdeployment_type\x18\b \x01(\tR\x0edeploymentType\x12(\n" +
-	"\x10voting_sign_path\x18\t \x01(\tR\x0evotingSignPath2\xd3\x01\n" +
+	"\x0fdeployment_type\x18\b \x01(\tR\x0edeploymentType2\xd3\x01\n" +
 	"\fAppIDService\x12\\\n" +
 	"\x13GetPublicKeyByAppID\x12!.appid.GetPublicKeyByAppIDRequest\x1a\".appid.GetPublicKeyByAppIDResponse\x12e\n" +
 	"\x16GetDeploymentAddresses\x12$.appid.GetDeploymentAddressesRequest\x1a%.appid.GetDeploymentAddressesResponseB\n" +

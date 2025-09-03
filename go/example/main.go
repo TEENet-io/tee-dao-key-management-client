@@ -69,18 +69,15 @@ func main() {
 
 	// Example: Multi-party voting signature
 	fmt.Println("\n3. Multi-party voting signature")
-	targetAppIDs := []string{"secure-messaging-app", "secure-messaging-app1", "secure-messaging-app2"}
-	requiredVotes := 2
 	votingMessage := []byte("test message for multi-party voting") // Contains "test" to trigger approval
 
 	// Create request data similar to signature-tool
 	messageBase64 := base64.StdEncoding.EncodeToString(votingMessage)
 	requestData := map[string]interface{}{
-		"message":        messageBase64,
-		"signer_app_id":  appID,
-		"target_app_ids": targetAppIDs,
-		"required_votes": requiredVotes,
-		"is_forwarded":   false,
+		"message":       messageBase64,
+		"signer_app_id": appID,
+		"is_forwarded":  false,
+		// Target app IDs and required votes are now fetched from server configuration
 	}
 
 	requestBody, err := json.Marshal(requestData)
@@ -106,12 +103,12 @@ func main() {
 	fmt.Printf("Voting request:\n")
 	fmt.Printf("  - Message: %s\n", string(votingMessage))
 	fmt.Printf("  - Signer App ID: %s\n", appID)
-	fmt.Printf("  - Target App IDs: %v\n", targetAppIDs)
-	fmt.Printf("  - Required Votes: %d/%d\n", requiredVotes, len(targetAppIDs))
 	fmt.Printf("  - Local Approval: %t\n", localApproval)
+	fmt.Printf("  Note: Target App IDs and Required Votes will be fetched from server\n")
 
 	// Use VotingSign with the constructed HTTP request
-	votingResult, err := client.VotingSign(req, votingMessage, appID, targetAppIDs, requiredVotes, localApproval)
+	// Target App IDs and required votes are now fetched from server configuration
+	votingResult, err := client.VotingSign(req, votingMessage, appID, localApproval)
 	if err != nil {
 		log.Printf("Voting signature failed: %v", err)
 	} else {

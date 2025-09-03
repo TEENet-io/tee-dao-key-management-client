@@ -28,7 +28,7 @@ export interface GetPublicKeyByAppIDResponse {
 }
 
 export interface GetDeploymentAddressesRequest {
-  app_ids: string[];
+  app_id: string;  // Single App ID to get all target deployment addresses for
 }
 
 export interface DeploymentInfo {
@@ -40,12 +40,13 @@ export interface DeploymentInfo {
   deployment_client_address: string;
   deployed_at: number;
   deployment_type: string;
-  voting_sign_path?: string;  // VotingSign API path
 }
 
 export interface GetDeploymentAddressesResponse {
   deployments: { [appId: string]: DeploymentInfo };
   not_found: string[];
+  voting_sign_path?: string;  // Shared VotingSign API path for all instances
+  required_votes?: number;    // Shared required votes for all instances
 }
 
 interface AppIDServiceClient {
@@ -130,13 +131,13 @@ export class AppIDClient {
     });
   }
 
-  async getDeploymentAddresses(appIds: string[], timeout: number): Promise<{ deployments: { [appId: string]: DeploymentInfo }, notFound: string[] }> {
+  async getDeploymentAddresses(appId: string, timeout: number): Promise<{ deployments: { [appId: string]: DeploymentInfo }, notFound: string[], voting_sign_path?: string, required_votes?: number }> {
     if (!this.client) {
       throw new Error('client not connected');
     }
 
     return new Promise((resolve, reject) => {
-      const request: GetDeploymentAddressesRequest = { app_ids: appIds };
+      const request: GetDeploymentAddressesRequest = { app_id: appId };
       
       this.client!.GetDeploymentAddresses(request, (error: grpc.ServiceError | null, response?: GetDeploymentAddressesResponse) => {
         if (error) {
@@ -144,7 +145,9 @@ export class AppIDClient {
         } else if (response) {
           resolve({
             deployments: response.deployments,
-            notFound: response.not_found
+            notFound: response.not_found,
+            voting_sign_path: (response as any).voting_sign_path,
+            required_votes: (response as any).required_votes
           });
         } else {
           reject(new Error('no response received'));
@@ -154,7 +157,19 @@ export class AppIDClient {
   }
 
   async getDeploymentTargetsForAppIDs(appIds: string[], timeout: number): Promise<{ [appId: string]: DeploymentTarget }> {
-    const { deployments, notFound } = await this.getDeploymentAddresses(appIds, timeout);
+    // For backward compatibility, make multiple calls if needed
+    // In practice, this method is not used in the new voting flow
+    const allDeployments: { [appId: string]: DeploymentInfo } = {};
+    const allNotFound: string[] = [];
+    
+    for (const appId of appIds) {
+      const { deployments, notFound } = await this.getDeploymentAddresses(appId, timeout);
+      Object.assign(allDeployments, deployments);
+      allNotFound.push(...notFound);
+    }
+    
+    const deployments = allDeployments;
+    const notFound = allNotFound;
     
     const result: { [appId: string]: DeploymentTarget } = {};
     
@@ -176,7 +191,7 @@ export class AppIDClient {
         port,
         containerIP: deployment.container_ip,
         deploymentClientAddress: deployment.deployment_client_address,
-        votingSignPath: deployment.voting_sign_path || '',
+        votingSignPath: '', // No longer in individual deployment info
         httpBaseURL: deployment.deployment_host
       };
     }
@@ -187,6 +202,49 @@ export class AppIDClient {
     }
     
     return result;
+  }
+
+  // GetDeploymentTargetsForVotingSign gets deployment targets for voting sign based on a single app ID
+  // It returns all target app IDs configured for the voting sign project
+  async getDeploymentTargetsForVotingSign(appId: string, timeout: number): Promise<{
+    deploymentTargets: { [appId: string]: DeploymentTarget };
+    votingSignPath: string;
+    requiredVotes: number;
+  }> {
+    const response = await this.getDeploymentAddresses(appId, timeout);
+    
+    const { deployments, notFound, voting_sign_path: votingSignPath = '', required_votes: requiredVotes = 0 } = response;
+    
+    const result: { [appId: string]: DeploymentTarget } = {};
+    
+    // Process successful deployments
+    for (const [appId, deployment] of Object.entries(deployments)) {
+      if (!deployment.container_ip || !deployment.deployment_client_address) {
+        console.warn(`⚠️  App ID ${appId} missing container IP or deployment client address`);
+        continue;
+      }
+      
+      result[appId] = {
+        appID: appId,
+        containerIP: deployment.container_ip,
+        deploymentClientAddress: deployment.deployment_client_address,
+        votingSignPath: votingSignPath, // Use shared voting sign path
+        httpBaseURL: deployment.deployment_host, // Use deployment host as HTTP base URL
+        address: deployment.deployment_client_address.split(':')[0],
+        port: parseInt(deployment.deployment_client_address.split(':')[1] || '50053', 10)
+      };
+    }
+    
+    // Log not found app IDs
+    if (notFound.length > 0) {
+      console.warn(`⚠️  App IDs not found or not deployed: ${notFound}`);
+    }
+    
+    return {
+      deploymentTargets: result,
+      votingSignPath,
+      requiredVotes
+    };
   }
 
   close(): void {

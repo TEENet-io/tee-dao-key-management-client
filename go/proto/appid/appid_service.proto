@@ -30,12 +30,14 @@ message GetPublicKeyByAppIDResponse {
 // Voting service messages
 // GetDeploymentAddressesRequest for voting coordinator to get deployment-client addresses
 message GetDeploymentAddressesRequest {
-  repeated string app_ids = 1;          // App IDs to get deployment addresses for
+  string app_id = 1;          // Single App ID to get all target deployment addresses for
 }
 
 message GetDeploymentAddressesResponse {
   map<string, DeploymentInfo> deployments = 1;  // app_id -> deployment info
   repeated string not_found = 2;                // App IDs that were not found or not deployed
+  string voting_sign_path = 3;                  // Shared VotingSign API path for all instances
+  int32 required_votes = 4;                     // Shared required votes for all instances
 }
 
 
@@ -49,6 +51,5 @@ message DeploymentInfo {
   string deployment_client_address = 6;  // Pre-constructed deployment-client gRPC address
   int64 deployed_at = 7;                 // Unix timestamp when deployed
   string deployment_type = 8;            // 'file', 'docker', or 'image_url'
-  string voting_sign_path = 9;           // VotingSign API path
 }
 

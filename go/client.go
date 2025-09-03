@@ -217,8 +217,9 @@ func (c *Client) GetPublicKeyByAppID(appID string) (publicKey, protocol, curve s
 	return c.userMgmtClient.GetPublicKeyByAppID(ctx, appID)
 }
 
-// VotingSign performs a voting process among specified app IDs using HTTP requests and returns detailed results with signature if approved
-func (c *Client) VotingSign(req *http.Request, message []byte, signerAppID string, targetAppIDs []string, requiredVotes int, localApproval bool) (*VotingResult, error) {
+// VotingSign performs a voting process for the specified app ID using HTTP requests and returns detailed results with signature if approved
+// The target app IDs and required votes are fetched from the server based on the VotingSign project configuration
+func (c *Client) VotingSign(req *http.Request, message []byte, signerAppID string, localApproval bool) (*VotingResult, error) {
 	var headers map[string]string
 	var voteRequestData []byte
 	var err error
@@ -234,16 +235,28 @@ func (c *Client) VotingSign(req *http.Request, message []byte, signerAppID strin
 		}
 	}
 	
-	return c.VotingSignWithHeaders(message, signerAppID, targetAppIDs, requiredVotes, localApproval, voteRequestData, headers)
+	return c.VotingSignWithHeaders(message, signerAppID, localApproval, voteRequestData, headers)
 }
 
 // VotingSignWithHeaders performs voting with custom headers forwarded to remote targets
-func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, targetAppIDs []string, requiredVotes int, localApproval bool, voteRequestData []byte, headers map[string]string) (*VotingResult, error) {
+func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, localApproval bool, voteRequestData []byte, headers map[string]string) (*VotingResult, error) {
 	// Parse isForwarded from the request data
 	var requestMap map[string]interface{}
 	isForwarded := false
 	if json.Unmarshal(voteRequestData, &requestMap) == nil {
 		isForwarded, _ = requestMap["is_forwarded"].(bool)
+	}
+
+	// Get deployment targets, voting sign path, and required votes from server
+	deploymentTargets, votingSignPath, requiredVotes, err := c.userMgmtClient.GetDeploymentTargetsForVotingSign(signerAppID, c.timeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get voting sign configuration: %w", err)
+	}
+
+	// Extract target app IDs from deployment targets
+	var targetAppIDs []string
+	for appID := range deploymentTargets {
+		targetAppIDs = append(targetAppIDs, appID)
 	}
 
 	// If this is a forwarded request, just return the local decision without further forwarding
@@ -253,7 +266,7 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, targe
 		result := &VotingResult{
 			TotalTargets:    1,
 			SuccessfulVotes: 0,
-			RequiredVotes:   requiredVotes,
+			RequiredVotes:   int(requiredVotes),
 			VotingComplete:  localApproval,
 			VoteDetails:     []VoteDetail{{ClientID: signerAppID, Success: true, Response: localApproval}},
 		}
@@ -269,10 +282,10 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, targe
 	}
 
 	if len(targetAppIDs) == 0 {
-		return nil, fmt.Errorf("no target app IDs provided")
+		return nil, fmt.Errorf("no target app IDs configured for voting sign")
 	}
 
-	if requiredVotes <= 0 || requiredVotes > len(targetAppIDs) {
+	if requiredVotes <= 0 || requiredVotes > int32(len(targetAppIDs)) {
 		return nil, fmt.Errorf("invalid required votes: %d (should be 1-%d)", requiredVotes, len(targetAppIDs))
 	}
 
@@ -309,12 +322,8 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, targe
 
 	// If there are remote targets, send voting requests
 	if len(remoteTargetAppIDs) > 0 {
-		log.Printf("🔍 Getting deployment targets for remote apps: %v", remoteTargetAppIDs)
-		deploymentTargets, err := c.userMgmtClient.GetDeploymentTargetsForAppIDs(remoteTargetAppIDs, c.timeout)
-		if err != nil {
-			log.Printf("❌ Failed to get deployment targets: %v", err)
-			return nil, fmt.Errorf("failed to get deployment targets: %w", err)
-		}
+		log.Printf("🔍 Using deployment targets for remote apps: %v", remoteTargetAppIDs)
+		log.Printf("📝 VotingSign path: %s", votingSignPath)
 		log.Printf("✅ Found %d deployment targets: %v", len(deploymentTargets), func() []string {
 			var keys []string
 			for k := range deploymentTargets {
@@ -369,7 +378,7 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, targe
 				log.Printf("❌ Failed to get vote from %s: %v", result.appID, result.err)
 			} else if result.approved {
 				approvalCount++
-				log.Printf("✅ Vote approved by %s (%d/%d)", result.appID, approvalCount, requiredVotes)
+				log.Printf("✅ Vote approved by %s (%d/%d)", result.appID, approvalCount, int(requiredVotes))
 			} else {
 				log.Printf("❌ Vote rejected by %s", result.appID)
 			}
@@ -382,20 +391,20 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, targe
 	votingResult := &VotingResult{
 		TotalTargets:    len(targetAppIDs),
 		SuccessfulVotes: approvalCount,
-		RequiredVotes:   requiredVotes,
-		VotingComplete:  approvalCount >= requiredVotes,
+		RequiredVotes:   int(requiredVotes),
+		VotingComplete:  approvalCount >= int(requiredVotes),
 		VoteDetails:     voteDetails,
 	}
 
 	// Check if voting passed
-	if approvalCount < requiredVotes {
+	if approvalCount < int(requiredVotes) {
 		votingResult.FinalResult = "REJECTED"
-		log.Printf("❌ Voting failed: only %d/%d approvals received", approvalCount, requiredVotes)
+		log.Printf("❌ Voting failed: only %d/%d approvals received", approvalCount, int(requiredVotes))
 		return votingResult, nil
 	}
 
 	// Generate signature
-	log.Printf("🔐 Generating signature for approved message (%d/%d votes received)", approvalCount, requiredVotes)
+	log.Printf("🔐 Generating signature for approved message (%d/%d votes received)", approvalCount, int(requiredVotes))
 	signature, err := c.SignWithAppID(message, signerAppID)
 	if err != nil {
 		votingResult.FinalResult = "SIGNATURE_FAILED"

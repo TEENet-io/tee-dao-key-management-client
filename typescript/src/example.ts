@@ -58,8 +58,8 @@ async function main() {
 
     // Example: Multi-party voting signature
     console.log('\n3. Multi-party voting signature');
-    const targetAppIDs = ['secure-messaging-app', 'secure-messaging-app1', 'secure-messaging-app2'];
-    const requiredVotes = 2;
+    // Note: targetAppIDs and requiredVotes are now fetched automatically from the server
+    // based on the voting sign project configuration
     const votingMessage = new TextEncoder().encode('test message for multi-party voting'); // Contains "test" to trigger approval
 
     // Create request data similar to signature-tool
@@ -67,8 +67,6 @@ async function main() {
     const requestData = {
       message: messageBase64,
       signer_app_id: appID,
-      target_app_ids: targetAppIDs,
-      required_votes: requiredVotes,
       is_forwarded: false
     };
 
@@ -92,13 +90,11 @@ async function main() {
     console.log('Voting request:');
     console.log(`  - Message: ${new TextDecoder().decode(votingMessage)}`);
     console.log(`  - Signer App ID: ${appID}`);
-    console.log(`  - Target App IDs: ${JSON.stringify(targetAppIDs)}`);
-    console.log(`  - Required Votes: ${requiredVotes}/${targetAppIDs.length}`);
     console.log(`  - Local Approval: ${localApproval}`);
 
     try {
       // Use VotingSign with the constructed HTTP request (matching Go version exactly)
-      const votingResult = await client.votingSign(mockReq, votingMessage, appID, targetAppIDs, requiredVotes, localApproval);
+      const votingResult = await client.votingSign(mockReq, votingMessage, appID, localApproval);
       console.log('\nVoting signature completed!');
       console.log(`Total Targets: ${votingResult.totalTargets}`);
       console.log(`Successful Votes: ${votingResult.successfulVotes}/${votingResult.requiredVotes}`);

@@ -102,33 +102,39 @@ func (c *Client) GetPublicKeyByAppID(ctx context.Context, appID string) (string,
 	return resp.Publickey, resp.Protocol, resp.Curve, nil
 }
 
-// GetDeploymentAddresses retrieves deployment addresses for given app IDs via gRPC
-func (c *Client) GetDeploymentAddresses(ctx context.Context, appIDs []string) (map[string]*appid.DeploymentInfo, []string, error) {
+// GetDeploymentAddresses retrieves deployment addresses for given app ID via gRPC
+func (c *Client) GetDeploymentAddresses(ctx context.Context, appID string) (*appid.GetDeploymentAddressesResponse, error) {
 	if c.client == nil {
-		return nil, nil, fmt.Errorf("client not connected")
+		return nil, fmt.Errorf("client not connected")
 	}
 
 	req := &appid.GetDeploymentAddressesRequest{
-		AppIds: appIDs,
+		AppId: appID,
 	}
 
 	resp, err := c.client.GetDeploymentAddresses(ctx, req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get deployment addresses: %w", err)
+		return nil, fmt.Errorf("failed to get deployment addresses: %w", err)
 	}
 
-	return resp.Deployments, resp.NotFound, nil
+	return resp, nil
 }
 
-// GetDeploymentTargetsForAppIDs gets deployment targets for multiple App IDs in batch
-func (c *Client) GetDeploymentTargetsForAppIDs(appIDs []string, timeout time.Duration) (map[string]*DeploymentTarget, error) {
+// GetDeploymentTargetsForVotingSign gets deployment targets for voting sign based on a single app ID
+// It returns all target app IDs configured for the voting sign project
+func (c *Client) GetDeploymentTargetsForVotingSign(appID string, timeout time.Duration) (map[string]*DeploymentTarget, string, int32, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	deployments, notFound, err := c.GetDeploymentAddresses(ctx, appIDs)
+	resp, err := c.GetDeploymentAddresses(ctx, appID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment info: %w", err)
+		return nil, "", 0, fmt.Errorf("failed to get deployment info: %w", err)
 	}
+
+	deployments := resp.Deployments
+	notFound := resp.NotFound
+	votingSignPath := resp.VotingSignPath
+	requiredVotes := resp.RequiredVotes
 
 	result := make(map[string]*DeploymentTarget)
 
@@ -142,7 +148,7 @@ func (c *Client) GetDeploymentTargetsForAppIDs(appIDs []string, timeout time.Dur
 			AppID:                   appID,
 			ContainerIP:             deployment.ContainerIp,
 			DeploymentClientAddress: deployment.DeploymentClientAddress,
-			VotingSignPath:          deployment.VotingSignPath,
+			VotingSignPath:          votingSignPath, // Use shared voting sign path
 			HTTPBaseURL:             deployment.DeploymentHost, // Use deployment host as HTTP base URL
 		}
 	}
@@ -152,5 +158,5 @@ func (c *Client) GetDeploymentTargetsForAppIDs(appIDs []string, timeout time.Dur
 		log.Printf("⚠️  App IDs not found or not deployed: %v", notFound)
 	}
 
-	return result, nil
+	return result, votingSignPath, requiredVotes, nil
 }
