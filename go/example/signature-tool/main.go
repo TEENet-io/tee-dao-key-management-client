@@ -149,19 +149,30 @@ func main() {
 			return
 		}
 
-		signature, err := teeClient.SignWithAppID([]byte(req.Message), req.AppID)
-		if err != nil {
-			log.Printf("Failed to sign message with app ID %s: %v", req.AppID, err)
+		// Use new Sign API with EnableVoting: false
+		signResult, err := teeClient.Sign(&client.SignRequest{
+			Message:      []byte(req.Message),
+			AppID:        req.AppID,
+			EnableVoting: false,
+		})
+		if err != nil || !signResult.Success {
+			errorMsg := "Failed to sign message"
+			if err != nil {
+				errorMsg = err.Error()
+			} else if signResult.Error != "" {
+				errorMsg = signResult.Error
+			}
+			log.Printf("Failed to sign message with app ID %s: %s", req.AppID, errorMsg)
 			c.JSON(http.StatusInternalServerError, SignWithAppIDResponse{
 				Success: false,
 				Message: req.Message,
 				AppID:   req.AppID,
-				Error:   err.Error(),
+				Error:   errorMsg,
 			})
 			return
 		}
 
-		signatureHex := hex.EncodeToString(signature)
+		signatureHex := hex.EncodeToString(signResult.Signature)
 		log.Printf("Successfully signed message with app ID %s", req.AppID)
 		c.JSON(http.StatusOK, SignWithAppIDResponse{
 			Success:   true,
@@ -266,7 +277,7 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
 			return
 		}
-		
+
 		var req IncomingVoteRequest
 		if err := json.Unmarshal(requestBody, &req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
@@ -285,40 +296,44 @@ func main() {
 		// Make vote decision: approve if message contains "test"
 		messageStr := string(messageBytes)
 		localApproval := strings.Contains(strings.ToLower(messageStr), "test")
-		
+
 		log.Printf("📝 [%s] Local vote decision for message '%s': %t", defaultAppID, messageStr, localApproval)
 
 		// Restore request body for VotingSign to read
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
-		
-		// Pass HTTP request to VotingSign - it will extract headers and request body automatically
-		// Use req.SignerAppID as the one requesting signature
-		// Target App IDs and required votes are now fetched from server configuration
-		votingResult, err := teeClient.VotingSign(c.Request, messageBytes, req.SignerAppID, localApproval)
+
+		// Use new Sign API with EnableVoting: true
+		signResult, err := teeClient.Sign(&client.SignRequest{
+			Message:       messageBytes,
+			AppID:         req.SignerAppID,
+			EnableVoting:  true,
+			LocalApproval: localApproval,
+			HTTPRequest:   c.Request,
+		})
 		if err != nil {
 			log.Printf("❌ [%s] VotingSign failed: %v", defaultAppID, err)
-			
-			// Check if we have partial voting results (e.g., voting passed but signature failed)
-			if votingResult != nil {
+
+			// Check if we have partial voting results
+			if signResult != nil && signResult.VotingInfo != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success":  true,
 					"approved": false,
 					"app_id":   defaultAppID,
 					"message":  fmt.Sprintf("VotingSign failed: %v", err),
 					"voting_results": gin.H{
-						"voting_complete":  votingResult.VotingComplete,
-						"successful_votes": votingResult.SuccessfulVotes,
-						"required_votes":   votingResult.RequiredVotes,
-						"total_targets":    votingResult.TotalTargets,
-						"final_result":     votingResult.FinalResult,
-						"vote_details":     votingResult.VoteDetails,
-						"error":           err.Error(),
+						"voting_complete":  signResult.Success,
+						"successful_votes": signResult.VotingInfo.SuccessfulVotes,
+						"required_votes":   signResult.VotingInfo.RequiredVotes,
+						"total_targets":    signResult.VotingInfo.TotalTargets,
+						"final_result":     signResult.Error,
+						"vote_details":     signResult.VotingInfo.VoteDetails,
+						"error":            err.Error(),
 					},
 					"signature": "",
 					"timestamp": time.Now().Format(time.RFC3339),
 				})
 			} else {
-				// No voting results at all (e.g., configuration error)
+				// No voting results at all
 				c.JSON(http.StatusOK, gin.H{
 					"success":  true,
 					"approved": false,
@@ -331,7 +346,7 @@ func main() {
 						"total_targets":    0,
 						"final_result":     "ERROR",
 						"vote_details":     []interface{}{},
-						"error":           err.Error(),
+						"error":            err.Error(),
 					},
 					"signature": "",
 					"timestamp": time.Now().Format(time.RFC3339),
@@ -340,30 +355,57 @@ func main() {
 			return
 		}
 
-		finalApproval := votingResult.VotingComplete && votingResult.FinalResult == "APPROVED"
+		finalApproval := signResult.Success
 		log.Printf("✅ [%s] VotingSign result: %t", defaultAppID, finalApproval)
-		
+
 		// Convert signature to hex string if available
 		var signatureHex string
-		if votingResult.Signature != nil && len(votingResult.Signature) > 0 {
-			signatureHex = hex.EncodeToString(votingResult.Signature)
+		if signResult.Signature != nil && len(signResult.Signature) > 0 {
+			signatureHex = hex.EncodeToString(signResult.Signature)
 		}
-		
+
+		// Prepare voting results response
+		votingResults := gin.H{
+			"voting_complete":  signResult.Success,
+			"successful_votes": 0,
+			"required_votes":   0,
+			"total_targets":    0,
+			"final_result":     "DIRECT_SIGN",
+			"vote_details":     []interface{}{},
+		}
+
+		if signResult.VotingInfo != nil {
+			votingResults = gin.H{
+				"voting_complete":  signResult.Success,
+				"successful_votes": signResult.VotingInfo.SuccessfulVotes,
+				"required_votes":   signResult.VotingInfo.RequiredVotes,
+				"total_targets":    signResult.VotingInfo.TotalTargets,
+				"final_result": func() string {
+					if signResult.Success {
+						return "APPROVED"
+					}
+					return "REJECTED"
+				}(),
+				"vote_details": signResult.VotingInfo.VoteDetails,
+			}
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"success":  true,
 			"approved": finalApproval,
 			"app_id":   defaultAppID,
-			"message":  votingResult.FinalResult,
-			"voting_results": gin.H{
-				"voting_complete":  votingResult.VotingComplete,
-				"successful_votes": votingResult.SuccessfulVotes,
-				"required_votes":   votingResult.RequiredVotes,
-				"total_targets":    votingResult.TotalTargets,
-				"final_result":     votingResult.FinalResult,
-				"vote_details":     votingResult.VoteDetails,
-			},
-			"signature": signatureHex,
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"message": func() string {
+				if signResult.Success {
+					return "APPROVED"
+				}
+				if signResult.Error != "" {
+					return signResult.Error
+				}
+				return "REJECTED"
+			}(),
+			"voting_results": votingResults,
+			"signature":      signatureHex,
+			"timestamp":      time.Now().UTC().Format(time.RFC3339),
 		})
 	})
 

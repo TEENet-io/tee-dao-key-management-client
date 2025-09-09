@@ -5,7 +5,7 @@ go 1.24.2
 toolchain go1.24.5
 
 require (
-	github.com/TEENet-io/tee-dao-key-management-client/go v0.0.0-20250903084627-305ddd7469d2
+	github.com/TEENet-io/tee-dao-key-management-client/go v0.0.0-20250909085017-8f4c33d3b121
 	github.com/gin-gonic/gin v1.10.1
 )
 
@@ -31,9 +31,9 @@ require (
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250826171959-ef028d996bc1 // indirect
+	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/text v0.29.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250908214217-97024824d090 // indirect
 	google.golang.org/grpc v1.75.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

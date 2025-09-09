@@ -2,7 +2,7 @@
 
 A comprehensive TEENet distributed key management client library with multi-language support and distributed voting signature mechanism, including a complete local testing environment.
 
-> **⚠️ Breaking Change in v2.0**: The `VotingSign` API has been simplified. Target app IDs and required votes are now automatically fetched from server configuration. See [Latest Updates](#-latest-updates-v20) for details.
+> **⚠️ Breaking Change in v2.0**: New unified `Sign()` API replaces `SignWithAppID` and `VotingSign` methods. Target app IDs and required votes are now automatically fetched from server configuration. See [Latest Updates](#-latest-updates-v20) for details.
 
 ## 🚀 Core Components
 
@@ -204,29 +204,46 @@ go get github.com/TEENet-io/tee-dao-key-management-client/go
 package main
 
 import (
-    "bytes"
+    "encoding/base64"
+    "encoding/hex"
+    "encoding/json"
     "fmt"
     "log"
     "net/http"
+    "strings"
     
     client "github.com/TEENet-io/tee-dao-key-management-client/go"
 )
 
 func main() {
     // Create client
-    client := client.NewClient("localhost:50052")
-    defer client.Close()
+    teeClient := client.NewClient("localhost:50052")
+    defer teeClient.Close()
 
-    // Initialize client (fetch config + establish TLS connection)
-    if err := client.Init(nil); err != nil { // nil uses default auto-approve voting handler
+    // Initialize client with custom voting handler (optional)
+    if err := teeClient.Init(nil); err != nil {
         log.Fatalf("Initialization failed: %v", err)
     }
 
-    fmt.Printf("Client connected, Node ID: %d\n", client.GetNodeID())
+    fmt.Printf("Client connected, Node ID: %d\n", teeClient.GetNodeID())
 
-    // Example 1: Get public key by App ID
+    // Example 1: Simple signature using new Sign API
     appID := "secure-messaging-app"
-    publicKey, protocol, curve, err := client.GetPublicKeyByAppID(appID)
+    message := []byte("Hello from AppID Service!")
+    
+    result, err := teeClient.Sign(&client.SignRequest{
+        Message: message,
+        AppID:   appID,
+        EnableVoting: false,
+    })
+    if err != nil {
+        log.Printf("Signing failed: %v", err)
+    } else if result.Success {
+        fmt.Printf("Signature: %x\n", result.Signature)
+    }
+
+    // Example 2: Get public key by App ID
+    publicKey, protocol, curve, err := teeClient.GetPublicKeyByAppID(appID)
     if err != nil {
         log.Printf("Failed to get public key: %v", err)
     } else {
@@ -235,57 +252,47 @@ func main() {
         fmt.Printf("  - Curve: %s\n", curve)
         fmt.Printf("  - Public Key: %s\n", publicKey)
     }
+}
 
-    // Example 2: Sign message with App ID
-    message := []byte("Hello from AppID Service!")
-    signature, err := client.SignWithAppID(message, appID)
-    if err != nil {
-        log.Printf("Signing with App ID failed: %v", err)
-    } else {
-        fmt.Printf("Signing with App ID successful!\n")
-        fmt.Printf("Message: %s\n", string(message))
-        fmt.Printf("Signature: %x\n", signature)
+// Example 3: Voting signature in HTTP handler
+func handleVotingRequest(w http.ResponseWriter, r *http.Request) {
+    var req struct {
+        Message     string `json:"message"`
+        SignerAppID string `json:"signer_app_id"`
     }
-
-    // Example 3: Distributed voting signature
-    votingMessage := []byte("test message for multi-party voting") // Contains "test" to trigger approval
-    localApproval := true
+    json.NewDecoder(r.Body).Decode(&req)
     
-    // Note: Target app IDs and required votes are now fetched from server configuration
+    // Decode message
+    messageBytes, _ := base64.StdEncoding.DecodeString(req.Message)
     
-    // Create a mock HTTP request like signature-tool does
-    requestBody := []byte(`{"message":"dGVzdCBtZXNzYWdlIGZvciBtdWx0aS1wYXJ0eSB2b3Rpbmc=","signer_app_id":"secure-messaging-app","is_forwarded":false}`)
-    req, _ := http.NewRequest("POST", "/vote", bytes.NewBuffer(requestBody))
-    req.Header.Set("Content-Type", "application/json")
-    req.Header.Set("User-Agent", "TEE-DAO-Client/1.0")
+    // Make local voting decision
+    localApproval := strings.Contains(string(messageBytes), "test")
     
-    // VotingSign now fetches target app IDs and required votes from server
-    votingResult, err := client.VotingSign(req, votingMessage, appID, localApproval)
+    // Use Sign API with voting enabled
+    result, err := teeClient.Sign(&client.SignRequest{
+        Message:       messageBytes,
+        AppID:         req.SignerAppID,
+        EnableVoting:  true,
+        LocalApproval: localApproval,
+        HTTPRequest:   r,  // Pass the incoming HTTP request
+    })
+    
     if err != nil {
-        log.Printf("Voting signature failed: %v", err)
-    } else {
-        fmt.Printf("Voting signature successful!\n")
-        fmt.Printf("Votes received: %d/%d\n", votingResult.SuccessfulVotes, votingResult.RequiredVotes)
-        fmt.Printf("Final result: %s\n", votingResult.FinalResult)
-        if votingResult.Signature != nil {
-            fmt.Printf("Signature: %x\n", votingResult.Signature)
-        }
-        
-        // Print detailed vote results
-        fmt.Printf("Vote details:\n")
-        for i, detail := range votingResult.VoteDetails {
-            status := "FAILED"
-            if detail.Success && detail.Response {
-                status = "APPROVED"
-            } else if detail.Success && !detail.Response {
-                status = "REJECTED"
-            }
-            fmt.Printf("  %d. %s: %s\n", i+1, detail.ClientID, status)
-            if detail.Error != "" {
-                fmt.Printf("     Error: %s\n", detail.Error)
-            }
-        }
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
     }
+    
+    // Return results
+    response := map[string]interface{}{
+        "success": result.Success,
+        "signature": hex.EncodeToString(result.Signature),
+    }
+    
+    if result.VotingInfo != nil {
+        response["voting_info"] = result.VotingInfo
+    }
+    
+    json.NewEncoder(w).Encode(response)
 }
 ```
 
@@ -294,163 +301,169 @@ func main() {
 ### Installation
 
 ```bash
-cd typescript
-npm install
+npm install @teenet/tee-dao-key-management-client
 ```
 
 ### Basic Usage
 
 ```typescript
-import { Client } from './src/client';
+import { Client, SignRequest } from '@teenet/tee-dao-key-management-client';
 
 async function main() {
-  // Create client
+  // Create and initialize client
   const client = new Client('localhost:50052');
+  await client.init();
+  
+  console.log(`Client connected, Node ID: ${client.getNodeId()}`);
 
-  try {
-    // Initialize client
-    await client.init();
-    console.log(`Client connected, Node ID: ${client.getNodeId()}`);
-
-    // Example 1: Get public key by App ID
-    const appID = 'secure-messaging-app';
-    try {
-      const { publickey, protocol, curve } = await client.getPublicKeyByAppID(appID);
-      console.log(`Public key for App ID ${appID}:`);
-      console.log(`  - Protocol: ${protocol}`);
-      console.log(`  - Curve: ${curve}`);
-      console.log(`  - Public Key: ${publickey}`);
-    } catch (error) {
-      console.error(`Failed to get public key: ${error}`);
-    }
-
-    // Example 2: Sign message with App ID
-    const message = new TextEncoder().encode('Hello from AppID Service!');
-    try {
-      const signature = await client.signWithAppID(message, appID);
-      console.log('Signing with App ID successful!');
-      console.log(`Message: ${new TextDecoder().decode(message)}`);
-      console.log(`Signature: ${Buffer.from(signature).toString('hex')}`);
-    } catch (error) {
-      console.error(`Signing with App ID failed: ${error}`);
-    }
-
-    // Example 3: Distributed voting signature
-    const votingMessage = new TextEncoder().encode('test message for multi-party voting'); // Contains "test" to trigger approval
-    const localApproval = true;
-    
-    // Note: Target app IDs and required votes are now fetched from server configuration
-    
-    // Create a mock HTTP request like signature-tool does
-    const { IncomingMessage } = require('http');
-    const mockReq = new IncomingMessage(null as any);
-    mockReq.method = 'POST';
-    mockReq.url = '/vote';
-    mockReq.headers = {
-      'content-type': 'application/json',
-      'user-agent': 'TEE-DAO-Client/1.0'
-    };
-    (mockReq as any).body = JSON.stringify({
-      message: Buffer.from(votingMessage).toString('base64'),
-      signer_app_id: appID,
-      is_forwarded: false
-    });
-    
-    try {
-      // VotingSign now fetches target app IDs and required votes from server
-      const votingResult = await client.votingSign(mockReq, votingMessage, appID, localApproval);
-      console.log('Voting signature successful!');
-      console.log(`Votes received: ${votingResult.successfulVotes}/${votingResult.requiredVotes}`);
-      console.log(`Final result: ${votingResult.finalResult}`);
-      if (votingResult.signature) {
-        console.log(`Signature: ${Buffer.from(votingResult.signature).toString('hex')}`);
-      }
-      
-      // Print detailed vote results
-      console.log(`Vote details:`);
-      votingResult.voteDetails.forEach((detail, index) => {
-        const status = detail.success ? (detail.response ? 'APPROVED' : 'REJECTED') : 'FAILED';
-        console.log(`  ${index + 1}. ${detail.clientId}: ${status}`);
-        if (detail.error) {
-          console.log(`     Error: ${detail.error}`);
-        }
-      });
-    } catch (error) {
-      console.error(`Voting signature failed: ${error}`);
-    }
-
-  } catch (error) {
-    console.error('Error:', error);
-  } finally {
-    await client.close();
+  // Example 1: Simple signature using new sign API
+  const appID = 'secure-messaging-app';
+  const message = new TextEncoder().encode('Hello from AppID Service!');
+  
+  const result = await client.sign({
+    message: message,
+    appID: appID,
+    enableVoting: false,
+  });
+  
+  if (result.success) {
+    console.log(`Signature: ${Buffer.from(result.signature).toString('hex')}`);
   }
+
+  // Example 2: Get public key by App ID
+  const { publicKey, protocol, curve } = await client.getPublicKeyByAppID(appID);
+  console.log(`Public key for ${appID}:`);
+  console.log(`  - Protocol: ${protocol}`);
+  console.log(`  - Curve: ${curve}`);
+  console.log(`  - Public Key: ${publicKey}`);
+  
+  await client.close();
 }
 
-main();
+// Example 3: Voting signature in Express handler
+app.post('/vote', async (req, res) => {
+  // Extract message from incoming request
+  const message = Buffer.from(req.body.message, 'base64');
+  const signerAppID = req.body.signer_app_id;
+  
+  // Make local voting decision
+  const messageStr = message.toString();
+  const localApproval = messageStr.includes('test');
+  
+  // Use sign API with voting enabled
+  const result = await client.sign({
+    message: message,
+    appID: signerAppID,
+    enableVoting: true,
+    localApproval: localApproval,
+    httpRequest: req,  // Pass the incoming Express request
+  });
+  
+  // Return results
+  res.json({
+    success: result.success,
+    signature: result.signature ? 
+      Buffer.from(result.signature).toString('hex') : null,
+    votingInfo: result.votingInfo
+  });
+});
+
+main().catch(console.error);
 ```
 
 ## API Reference
 
-### Client Creation and Initialization
+### Core Methods
 
-**Go:**
+#### Sign (Unified API)
 ```go
-client := client.NewClient("localhost:50052")
-err := client.Init(nil) // nil uses default voting handler
+// Go
+result, err := client.Sign(request *SignRequest) (*SignResult, error)
+
+// TypeScript
+result = await client.sign(request: SignRequest): Promise<SignResult>
 ```
 
-**TypeScript:**
-```typescript
-const client = new Client('localhost:50052');
-await client.init();
-```
-
-### Distributed Voting Signature
-
-**Go (new signature with HTTP request support):**
+#### GetPublicKeyByAppID
 ```go
-// Create HTTP request object
-req, _ := http.NewRequest("POST", "/vote", bytes.NewBuffer(requestBody))
-req.Header.Set("Content-Type", "application/json")
+// Go
+publicKey, protocol, curve, err := client.GetPublicKeyByAppID(appID string)
 
-// Target app IDs and required votes are now fetched from server
-votingResult, err := client.VotingSign(req, message, signerAppID, localApproval)
+// TypeScript
+const { publicKey, protocol, curve } = await client.getPublicKeyByAppID(appID: string)
 ```
 
-**TypeScript (new signature with HTTP request support):**
-```typescript
-// Create HTTP request mock
-const mockReq = new IncomingMessage(null as any);
-mockReq.method = 'POST';
-mockReq.url = '/vote';
-mockReq.headers = { 'content-type': 'application/json' };
+### Core Types
 
-// Target app IDs and required votes are now fetched from server
-const votingResult = await client.votingSign(mockReq, message, signerAppId, localApproval)
-```
-
-### AppID Service Methods
-
-**Get Public Key by AppID:**
+#### SignRequest
 ```go
-publicKey, protocol, curve, err := client.GetPublicKeyByAppID(appID)
+// Go
+type SignRequest struct {
+    Message       []byte        // Message to sign
+    AppID         string        // Application identifier
+    EnableVoting  bool          // Enable multi-party voting
+    LocalApproval bool          // Local voting decision (for voting)
+    HTTPRequest   *http.Request // HTTP request context (for voting)
+}
+
+// TypeScript
+interface SignRequest {
+    message: Uint8Array;       // Message to sign
+    appID: string;             // Application identifier
+    enableVoting?: boolean;    // Enable multi-party voting
+    localApproval?: boolean;   // Local voting decision
+    httpRequest?: any;         // HTTP request object
+}
 ```
 
-**Sign with AppID:**
+#### SignResult
 ```go
-signature, err := client.SignWithAppID(message, appID)
+// Go
+type SignResult struct {
+    Success    bool        // Operation success
+    Signature  []byte      // Generated signature
+    Error      string      // Error message if failed
+    VotingInfo *VotingInfo // Voting details (when voting enabled)
+}
+
+// TypeScript
+interface SignResult {
+    success: boolean;          // Operation success
+    signature?: Uint8Array;    // Generated signature
+    error?: string;            // Error message
+    votingInfo?: VotingInfo;   // Voting details
+}
+```
+
+#### VotingInfo
+```go
+// Go
+type VotingInfo struct {
+    TotalTargets    int          // Total voting nodes
+    SuccessfulVotes int          // Number of approvals
+    RequiredVotes   int          // Threshold for approval
+    VoteDetails     []VoteDetail // Individual vote information
+}
+
+// TypeScript
+interface VotingInfo {
+    totalTargets: number;      // Total voting nodes
+    successfulVotes: number;    // Number of approvals
+    requiredVotes: number;      // Threshold for approval
+    voteDetails: VoteDetail[];  // Individual vote information
+}
 ```
 
 ### Protocol and Curve Constants
 
 **Protocols:**
-- `constants.ProtocolECDSA` (1)
-- `constants.ProtocolSchnorr` (2)
+- `ProtocolECDSA` (1)
+- `ProtocolSchnorr` (2)
 
 **Curves:**
-- `constants.CurveED25519` (1)
-- `constants.CurveSECP256K1` (2)
-- `constants.CurveSECP256R1` (3)
+- `CurveED25519` (1)
+- `CurveSECP256K1` (2)
+- `CurveSECP256R1` (3)
 
 ## Project Structure
 
@@ -508,12 +521,24 @@ signature, err := client.SignWithAppID(message, appID)
 ## 🆕 Latest Updates (v2.0)
 
 ### ⭐ Major API Changes
-1. **Automatic Server Configuration**: `VotingSign` no longer requires `target_app_ids` and `required_votes` parameters
-   - **Before**: `client.VotingSign(req, message, signerAppID, targetAppIDs, requiredVotes, localApproval)`
-   - **After**: `client.VotingSign(req, message, signerAppID, localApproval)`
-   - Target nodes and voting threshold are now fetched from server-side VotingSign project configuration
+1. **Unified Sign API**: New `Sign()` method replaces separate `SignWithAppID` and `VotingSign` methods
+   - **Before**: 
+     ```go
+     signature, err := client.SignWithAppID(message, appID)
+     votingResult, err := client.VotingSign(req, message, appID, localApproval)
+     ```
+   - **After**: 
+     ```go
+     result, err := client.Sign(&SignRequest{
+         Message: message,
+         AppID: appID,
+         EnableVoting: false, // or true for voting
+         LocalApproval: localApproval,
+         HTTPRequest: req,
+     })
+     ```
 
-2. **Simplified Integration**: Voting configuration is managed centrally on the server
+2. **Automatic Server Configuration**: Target nodes and voting threshold fetched from server
    - No need to hardcode target App IDs in client code
    - Voting threshold automatically determined by server settings
    - More flexible and easier to maintain
