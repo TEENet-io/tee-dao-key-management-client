@@ -26,14 +26,38 @@ export interface ClientOptions {
   timeout?: number;
 }
 
+// SignRequest matches Go's SignRequest struct
 export interface SignRequest {
-  from: number;
-  msg: Uint8Array;
-  publicKeyInfo: Uint8Array;
-  protocol: number;
-  curve: number;
+  message: Uint8Array;      // Message to sign
+  appID: string;            // App ID for signing
+  enableVoting?: boolean;    // Whether to enable voting process
+  
+  // Voting-specific fields (only used when enableVoting is true)
+  localApproval?: boolean;   // Local approval status for voting
+  voteRequestData?: Uint8Array; // Vote request body data
+  headers?: { [key: string]: string }; // HTTP headers to forward
+  httpRequest?: any;        // Original HTTP request (optional)
 }
 
+// SignResult matches Go's SignResult struct
+export interface SignResult {
+  signature?: Uint8Array;   // Signature bytes
+  success: boolean;         // Success status
+  error?: string;          // Error message if any
+  
+  // Voting-specific fields (only present when voting was performed)
+  votingInfo?: VotingInfo;
+}
+
+// VotingInfo matches Go's VotingInfo struct
+export interface VotingInfo {
+  totalTargets: number;
+  successfulVotes: number;
+  requiredVotes: number;
+  voteDetails: VoteDetail[];
+}
+
+// Old interfaces kept for backward compatibility
 export interface SignResponse {
   success: boolean;
   error?: string;

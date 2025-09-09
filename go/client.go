@@ -42,15 +42,35 @@ type VoteDetail struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// VotingResult contains the result of a voting process
-type VotingResult struct {
+// SignRequest contains all parameters for sign operations
+type SignRequest struct {
+	Message      []byte // Message to sign
+	AppID        string // App ID for signing
+	EnableVoting bool   // Whether to enable voting process
+
+	// Voting-specific fields (only used when EnableVoting is true)
+	LocalApproval   bool              // Local approval status for voting
+	VoteRequestData []byte            // Vote request body data
+	Headers         map[string]string // HTTP headers to forward
+	HTTPRequest     *http.Request     // Original HTTP request (optional)
+}
+
+// SignResult contains the result of a sign operation
+type SignResult struct {
+	Signature []byte `json:"signature,omitempty"`
+	Success   bool   `json:"success"`
+	Error     string `json:"error,omitempty"`
+
+	// Voting-specific fields (only present when voting was performed)
+	VotingInfo *VotingInfo `json:"voting_info,omitempty"`
+}
+
+// VotingInfo contains voting-specific information
+type VotingInfo struct {
 	TotalTargets    int          `json:"total_targets"`
 	SuccessfulVotes int          `json:"successful_votes"`
 	RequiredVotes   int          `json:"required_votes"`
-	VotingComplete  bool         `json:"voting_complete"`
-	FinalResult     string       `json:"final_result"`
 	VoteDetails     []VoteDetail `json:"vote_details"`
-	Signature       []byte       `json:"signature,omitempty"`
 }
 
 // Client is a simplified key management client with voting capabilities
@@ -167,7 +187,7 @@ func (c *Client) Init(votingHandler func(context.Context, *pb.VotingRequest) (*p
 }
 
 // SignWithAppID signs a message using a public key from user management system by app ID
-func (c *Client) SignWithAppID(message []byte, appID string) ([]byte, error) {
+func (c *Client) signWithAppID(message []byte, appID string) ([]byte, error) {
 	if c.taskClient == nil {
 		return nil, fmt.Errorf("client not initialized")
 	}
@@ -217,29 +237,8 @@ func (c *Client) GetPublicKeyByAppID(appID string) (publicKey, protocol, curve s
 	return c.userMgmtClient.GetPublicKeyByAppID(ctx, appID)
 }
 
-// VotingSign performs a voting process for the specified app ID using HTTP requests and returns detailed results with signature if approved
-// The target app IDs and required votes are fetched from the server based on the VotingSign project configuration
-func (c *Client) VotingSign(req *http.Request, message []byte, signerAppID string, localApproval bool) (*VotingResult, error) {
-	var headers map[string]string
-	var voteRequestData []byte
-	var err error
-	
-	// Extract headers and request body from HTTP request if provided
-	if req != nil {
-		headers = voting.ExtractHeadersFromRequest(req)
-		
-		// Read request body
-		voteRequestData, err = io.ReadAll(req.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read request body: %w", err)
-		}
-	}
-	
-	return c.VotingSignWithHeaders(message, signerAppID, localApproval, voteRequestData, headers)
-}
-
-// VotingSignWithHeaders performs voting with custom headers forwarded to remote targets
-func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, localApproval bool, voteRequestData []byte, headers map[string]string) (*VotingResult, error) {
+// votingSignWithHeaders performs voting with custom headers forwarded to remote targets
+func (c *Client) votingSignWithHeaders(message []byte, signerAppID string, localApproval bool, voteRequestData []byte, headers map[string]string) (*SignResult, error) {
 	// Parse isForwarded from the request data
 	var requestMap map[string]interface{}
 	isForwarded := false
@@ -263,19 +262,20 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, local
 	if isForwarded {
 		log.Printf("🔄 Forwarded request - returning local decision: %t for app %s", localApproval, signerAppID)
 
-		result := &VotingResult{
-			TotalTargets:    1,
-			SuccessfulVotes: 0,
-			RequiredVotes:   int(requiredVotes),
-			VotingComplete:  localApproval,
-			VoteDetails:     []VoteDetail{{ClientID: signerAppID, Success: true, Response: localApproval}},
+		result := &SignResult{
+			Success: localApproval,
+			VotingInfo: &VotingInfo{
+				TotalTargets:    1,
+				SuccessfulVotes: 0,
+				RequiredVotes:   int(requiredVotes),
+				VoteDetails:     []VoteDetail{{ClientID: signerAppID, Success: true, Response: localApproval}},
+			},
 		}
 
 		if localApproval {
-			result.FinalResult = "APPROVED"
-			result.SuccessfulVotes = 1
+			result.VotingInfo.SuccessfulVotes = 1
 		} else {
-			result.FinalResult = "REJECTED"
+			result.Error = "Vote rejected"
 		}
 
 		return result, nil
@@ -295,7 +295,7 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, local
 	// Initialize vote details and approval count
 	var voteDetails []VoteDetail
 	approvalCount := 0
-	
+
 	// Add local vote only if signerAppID is in targetAppIDs
 	signerInTargets := false
 	for _, targetAppID := range targetAppIDs {
@@ -304,7 +304,7 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, local
 			break
 		}
 	}
-	
+
 	if signerInTargets {
 		voteDetails = append(voteDetails, VoteDetail{ClientID: signerAppID, Success: true, Response: localApproval})
 		if localApproval {
@@ -387,35 +387,87 @@ func (c *Client) VotingSignWithHeaders(message []byte, signerAppID string, local
 		}
 	}
 
-	// Create final voting result
-	votingResult := &VotingResult{
-		TotalTargets:    len(targetAppIDs),
-		SuccessfulVotes: approvalCount,
-		RequiredVotes:   int(requiredVotes),
-		VotingComplete:  approvalCount >= int(requiredVotes),
-		VoteDetails:     voteDetails,
+	// Create voting result
+	signResult := &SignResult{
+		VotingInfo: &VotingInfo{
+			TotalTargets:    len(targetAppIDs),
+			SuccessfulVotes: approvalCount,
+			RequiredVotes:   int(requiredVotes),
+			VoteDetails:     voteDetails,
+		},
 	}
 
 	// Check if voting passed
 	if approvalCount < int(requiredVotes) {
-		votingResult.FinalResult = "REJECTED"
-		log.Printf("❌ Voting failed: only %d/%d approvals received", approvalCount, int(requiredVotes))
-		return votingResult, nil
+		signResult.Success = false
+		signResult.Error = fmt.Sprintf("Voting failed: only %d/%d approvals received", approvalCount, int(requiredVotes))
+		log.Printf("❌ %s", signResult.Error)
+		return signResult, nil
 	}
 
 	// Generate signature
 	log.Printf("🔐 Generating signature for approved message (%d/%d votes received)", approvalCount, int(requiredVotes))
-	signature, err := c.SignWithAppID(message, signerAppID)
+	signature, err := c.signWithAppID(message, signerAppID)
 	if err != nil {
-		votingResult.FinalResult = "SIGNATURE_FAILED"
-		return votingResult, fmt.Errorf("failed to generate signature: %w", err)
+		signResult.Success = false
+		signResult.Error = fmt.Sprintf("Failed to generate signature: %v", err)
+		return signResult, fmt.Errorf("failed to generate signature: %w", err)
 	}
 
-	votingResult.FinalResult = "APPROVED"
-	votingResult.Signature = signature
+	signResult.Success = true
+	signResult.Signature = signature
 
 	log.Printf("✅ Voting and signing completed successfully")
-	return votingResult, nil
+	return signResult, nil
+}
+
+// Sign performs signing with optional voting based on SignRequest configuration
+func (c *Client) Sign(req *SignRequest) (*SignResult, error) {
+	if req == nil {
+		return nil, fmt.Errorf("sign request cannot be nil")
+	}
+
+	// Validate required fields
+	if req.AppID == "" {
+		return nil, fmt.Errorf("app ID is required")
+	}
+
+	// If voting is not enabled, perform direct signing
+	if !req.EnableVoting {
+		signature, err := c.signWithAppID(req.Message, req.AppID)
+		if err != nil {
+			return &SignResult{
+				Success: false,
+				Error:   err.Error(),
+			}, err
+		}
+		return &SignResult{
+			Signature: signature,
+			Success:   true,
+		}, nil
+	}
+
+	// Process HTTP request if provided
+	var headers map[string]string
+	var voteRequestData []byte
+
+	if req.HTTPRequest != nil {
+		headers = voting.ExtractHeadersFromRequest(req.HTTPRequest)
+		if req.HTTPRequest.Body != nil {
+			var err error
+			voteRequestData, err = io.ReadAll(req.HTTPRequest.Body)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read request body: %w", err)
+			}
+		}
+	} else {
+		// Use provided data if no HTTP request
+		headers = req.Headers
+		voteRequestData = req.VoteRequestData
+	}
+
+	// Perform voting and signing
+	return c.votingSignWithHeaders(req.Message, req.AppID, req.LocalApproval, voteRequestData, headers)
 }
 
 // Close closes client connections

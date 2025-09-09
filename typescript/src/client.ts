@@ -11,7 +11,7 @@
 //
 // -----------------------------------------------------------------------------
 
-import { NodeConfig, ClientOptions, Constants, Protocol, Curve, VotingResult, VoteDetail, VotingHandler, VotingRequest, VotingResponse, DeploymentTarget } from './types';
+import { NodeConfig, ClientOptions, Constants, Protocol, Curve, VotingResult, VoteDetail, VotingHandler, VotingRequest, VotingResponse, DeploymentTarget, SignRequest, SignResult, VotingInfo } from './types';
 import { ConfigClient } from './config-client';
 import { TaskClient } from './task-client';
 import { AppIDClient } from './appid-client';
@@ -258,6 +258,74 @@ export class Client {
 
     // Sign the message directly through taskClient
     return this.taskClient.sign(message, new Uint8Array(publicKeyBuffer), protocolNum, curveNum, this.timeout);
+  }
+
+  // Sign method that matches Go's Sign method signature
+  async sign(req: SignRequest): Promise<SignResult> {
+    if (!req.message || !req.appID) {
+      throw new Error('message and appID are required');
+    }
+
+    // If voting is not enabled, perform regular signing
+    if (!req.enableVoting) {
+      try {
+        const signature = await this.signWithAppID(req.message, req.appID);
+        return {
+          signature,
+          success: true
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message || 'signing failed'
+        };
+      }
+    }
+
+    // Voting is enabled, perform voting sign
+    try {
+      // If httpRequest is provided, use votingSign method that accepts it
+      let votingResult: VotingResult;
+      if (req.httpRequest) {
+        votingResult = await this.votingSign(
+          req.httpRequest,
+          req.message,
+          req.appID,
+          req.localApproval || false
+        );
+      } else {
+        votingResult = await this.votingSignWithHeaders(
+          req.message,
+          req.appID,
+          req.localApproval || false,
+          req.voteRequestData,
+          req.headers
+        );
+      }
+
+      // Convert VotingResult to SignResult
+      const result: SignResult = {
+        signature: votingResult.signature,
+        success: votingResult.votingComplete && votingResult.signature !== undefined,
+        votingInfo: {
+          totalTargets: votingResult.totalTargets,
+          successfulVotes: votingResult.successfulVotes,
+          requiredVotes: votingResult.requiredVotes,
+          voteDetails: votingResult.voteDetails
+        }
+      };
+
+      if (!result.success) {
+        result.error = votingResult.finalResult;
+      }
+
+      return result;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'voting sign failed'
+      };
+    }
   }
 
   // VotingSign performs a voting process for the specified app ID using HTTP requests and returns detailed results with signature if approved

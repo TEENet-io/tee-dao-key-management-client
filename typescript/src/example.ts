@@ -11,7 +11,7 @@
 //
 // -----------------------------------------------------------------------------
 
-import { Client } from './client';
+import { Client, SignRequest } from './index';
 // @ts-ignore
 import * as wtfnode from 'wtfnode';
 
@@ -22,19 +22,19 @@ async function main() {
   console.log('=== TEE DAO Key Management Client with AppID Service Integration ===');
 
   // Create client
-  const client = new Client(configServerAddr);
+  const teeClient = new Client(configServerAddr);
 
   try {
     // Initialize client with default voting handler (auto-approve)
-    await client.init();
-    console.log(`Client initialized successfully, Node ID: ${client.getNodeId()}`);
+    await teeClient.init();
+    console.log('Client initialized successfully');
 
     // Example: Get public key by app ID
     console.log('\n1. Get public key by app ID');
     const appID = 'secure-messaging-app'; // Replace with actual app ID
     
     try {
-      const { publickey, protocol, curve } = await client.getPublicKeyByAppID(appID);
+      const { publickey, protocol, curve } = await teeClient.getPublicKeyByAppID(appID);
       console.log(`Public key for app ID ${appID}:`);
       console.log(`  - Protocol: ${protocol}`);
       console.log(`  - Curve: ${curve}`);
@@ -43,29 +43,45 @@ async function main() {
       console.error(`Failed to get public key by app ID: ${error}`);
     }
 
-    // Example: Sign with app ID
-    console.log('\n2. Sign message with app ID');
+    // Example: Sign message using Sign method
+    console.log('\n2. Sign message');
     const message = new TextEncoder().encode('Hello from AppID Service!');
 
+    const signReq: SignRequest = {
+      message: message,
+      appID: appID,
+      enableVoting: false
+    };
+
     try {
-      const signature = await client.signWithAppID(message, appID);
-      console.log('Signing with app ID successful!');
-      console.log(`Message: ${new TextDecoder().decode(message)}`);
-      console.log(`Signature: ${Buffer.from(signature).toString('hex')}`);
+      const signResult = await teeClient.sign(signReq);
+      if (signResult.success && signResult.signature) {
+        console.log('Signing successful!');
+        console.log(`Message: ${new TextDecoder().decode(message)}`);
+        console.log(`Signature: ${Buffer.from(signResult.signature).toString('hex')}`);
+        console.log(`Success: ${signResult.success}`);
+        if (signResult.error) {
+          console.log(`Error: ${signResult.error}`);
+        }
+      } else {
+        console.error(`Signing failed: ${signResult.error}`);
+      }
     } catch (error) {
-      console.error(`Signing with app ID failed: ${error}`);
+      console.error(`Signing failed: ${error}`);
     }
 
     // Example: Multi-party voting signature
-    console.log('\n3. Multi-party voting signature');
-    // Note: targetAppIDs and requiredVotes are now fetched automatically from the server
-    // based on the voting sign project configuration
+    console.log('\n3. Multi-party voting signature example');
     const votingMessage = new TextEncoder().encode('test message for multi-party voting'); // Contains "test" to trigger approval
 
-    // Create request data similar to signature-tool
-    const messageBase64 = Buffer.from(votingMessage).toString('base64');
+    console.log('Voting request:');
+    console.log(`  - Message: ${new TextDecoder().decode(votingMessage)}`);
+    console.log(`  - Signer App ID: ${appID}`);
+    console.log(`  - Voting Enabled: true`);
+
+    // Create HTTP request body similar to signature-tool
     const requestData = {
-      message: messageBase64,
+      message: Buffer.from(votingMessage).toString('base64'),
       signer_app_id: appID,
       is_forwarded: false
     };
@@ -74,60 +90,66 @@ async function main() {
 
     // Create a mock HTTP request like signature-tool does
     const { IncomingMessage } = require('http');
-    const mockReq = new IncomingMessage(null as any);
-    mockReq.method = 'POST';
-    mockReq.url = '/vote';
-    mockReq.headers = {
-      'content-type': 'application/json',
-      'user-agent': 'TEE-DAO-Client/1.0'
+    const httpReq = new IncomingMessage(null as any);
+    httpReq.method = 'POST';
+    httpReq.url = '/vote';
+    httpReq.headers = {
+      'content-type': 'application/json'
     };
     // Add body to request (simulating parsed body)
-    (mockReq as any).body = JSON.stringify(requestData);
+    (httpReq as any).body = JSON.stringify(requestData);
 
-    // Local approval decision (same logic as signature-tool)
+    // Make vote decision: approve if message contains "test"
     const localApproval = new TextDecoder().decode(votingMessage).toLowerCase().includes('test');
-
-    console.log('Voting request:');
-    console.log(`  - Message: ${new TextDecoder().decode(votingMessage)}`);
-    console.log(`  - Signer App ID: ${appID}`);
     console.log(`  - Local Approval: ${localApproval}`);
 
+    // Sign with voting enabled
+    const votingSignReq: SignRequest = {
+      message: votingMessage,
+      appID: appID,
+      enableVoting: true,
+      localApproval: localApproval,
+      httpRequest: httpReq
+    };
+
     try {
-      // Use VotingSign with the constructed HTTP request (matching Go version exactly)
-      const votingResult = await client.votingSign(mockReq, votingMessage, appID, localApproval);
-      console.log('\nVoting signature completed!');
-      console.log(`Total Targets: ${votingResult.totalTargets}`);
-      console.log(`Successful Votes: ${votingResult.successfulVotes}/${votingResult.requiredVotes}`);
-      console.log(`Voting Complete: ${votingResult.votingComplete}`);
-      console.log(`Final Result: ${votingResult.finalResult}`);
-      
-      if (votingResult.signature) {
-        console.log(`Signature: ${Buffer.from(votingResult.signature).toString('hex')}`);
-      } else {
-        console.log('Signature: No signature (voting failed or incomplete)');
-      }
-      
-      // Print detailed vote results
-      console.log('\nVote Details:');
-      votingResult.voteDetails.forEach((detail, index) => {
-        const status = detail.success ? (detail.response ? 'APPROVED' : 'REJECTED') : 'FAILED';
-        let output = `  ${index + 1}. ${detail.clientId}: ${status}`;
-        if (detail.error) {
-          output += ` (Error: ${detail.error})`;
+      const votingSignResult = await teeClient.sign(votingSignReq);
+      if (votingSignResult.success) {
+        console.log('\nVoting signature completed!');
+        console.log(`Success: ${votingSignResult.success}`);
+        if (votingSignResult.signature) {
+          console.log(`Signature: ${Buffer.from(votingSignResult.signature).toString('hex')}`);
         }
-        console.log(output);
-      });
+        
+        // Display voting information if available
+        if (votingSignResult.votingInfo) {
+          console.log('\nVoting Details:');
+          console.log(`  - Total Targets: ${votingSignResult.votingInfo.totalTargets}`);
+          console.log(`  - Successful Votes: ${votingSignResult.votingInfo.successfulVotes}`);
+          console.log(`  - Required Votes: ${votingSignResult.votingInfo.requiredVotes}`);
+          
+          console.log('\nIndividual Votes:');
+          votingSignResult.votingInfo.voteDetails.forEach((vote, i) => {
+            console.log(`  ${i + 1}. Client ${vote.clientId}: Success=${vote.success}`);
+          });
+        }
+        
+        if (votingSignResult.error) {
+          console.log(`Error: ${votingSignResult.error}`);
+        }
+      } else {
+        console.error(`Voting signature failed: ${votingSignResult.error}`);
+      }
     } catch (error) {
       console.error(`Voting signature failed: ${error}`);
     }
-
 
     console.log('\n=== Example completed ===');
 
   } catch (error) {
     console.error('Client initialization failed:', error);
   } finally {
-    await client.close();
+    await teeClient.close();
     console.log('🏁 Example finished');
   }
 }

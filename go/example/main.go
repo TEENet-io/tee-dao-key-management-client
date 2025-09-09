@@ -32,10 +32,10 @@ func main() {
 	fmt.Println("=== TEE DAO Key Management Client with AppID Service Integration ===")
 
 	// Create client
-	client := client.NewClient(configServerAddr)
-	defer client.Close()
+	teeClient := client.NewClient(configServerAddr)
+	defer teeClient.Close()
 
-	if err := client.Init(nil); err != nil {
+	if err := teeClient.Init(nil); err != nil {
 		log.Fatalf("Client initialization failed: %v", err)
 	}
 
@@ -44,7 +44,7 @@ func main() {
 	// Example: Get public key by app ID
 	fmt.Println("\n1. Get public key by app ID")
 	appID := "secure-messaging-app"
-	publicKey, protocol, curve, err := client.GetPublicKeyByAppID(appID)
+	publicKey, protocol, curve, err := teeClient.GetPublicKeyByAppID(appID)
 	if err != nil {
 		log.Printf("Failed to get public key by app ID: %v", err)
 	} else {
@@ -54,30 +54,40 @@ func main() {
 		fmt.Printf("  - Public Key: %s\n", publicKey)
 	}
 
-	// Example: Sign with app ID
-	fmt.Println("\n2. Sign message with app ID")
+	// Example: Sign message using Sign method
+	fmt.Println("\n2. Sign message")
 	message := []byte("Hello from AppID Service!")
 
-	signature, err := client.SignWithAppID(message, appID)
+	signReq := &client.SignRequest{
+		Message: message,
+		AppID:   appID,
+	}
+	signResult, err := teeClient.Sign(signReq)
 	if err != nil {
-		log.Printf("Signing with app ID failed: %v", err)
+		log.Printf("Signing failed: %v", err)
 	} else {
-		fmt.Printf("Signing with app ID successful!\n")
+		fmt.Printf("Signing successful!\n")
 		fmt.Printf("Message: %s\n", string(message))
-		fmt.Printf("Signature: %x\n", signature)
+		fmt.Printf("Signature: %x\n", signResult.Signature)
+		fmt.Printf("Success: %t\n", signResult.Success)
+		if signResult.Error != "" {
+			fmt.Printf("Error: %s\n", signResult.Error)
+		}
 	}
 
 	// Example: Multi-party voting signature
-	fmt.Println("\n3. Multi-party voting signature")
+	fmt.Println("\n3. Multi-party voting signature example")
 	votingMessage := []byte("test message for multi-party voting") // Contains "test" to trigger approval
 
-	// Create request data similar to signature-tool
-	messageBase64 := base64.StdEncoding.EncodeToString(votingMessage)
+	fmt.Printf("Voting request:\n")
+	fmt.Printf("  - Message: %s\n", string(votingMessage))
+	fmt.Printf("  - Signer App ID: %s\n", appID)
+	fmt.Printf("  - Voting Enabled: true\n")
+
+	// Create HTTP request body similar to signature-tool
 	requestData := map[string]interface{}{
-		"message":       messageBase64,
+		"message":       base64.StdEncoding.EncodeToString(votingMessage),
 		"signer_app_id": appID,
-		"is_forwarded":  false,
-		// Target app IDs and required votes are now fetched from server configuration
 	}
 
 	requestBody, err := json.Marshal(requestData)
@@ -87,57 +97,51 @@ func main() {
 	}
 
 	// Create a mock HTTP request like signature-tool does
-	req, err := http.NewRequest("POST", "/vote", bytes.NewBuffer(requestBody))
+	httpReq, err := http.NewRequest("POST", "/vote", bytes.NewBuffer(requestBody))
 	if err != nil {
 		log.Printf("Failed to create HTTP request: %v", err)
 		return
 	}
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	// Set headers like signature-tool
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "TEE-DAO-Client/1.0")
-
-	// Local approval decision (same logic as signature-tool)
+	// Make vote decision: approve if message contains "test"
 	localApproval := strings.Contains(strings.ToLower(string(votingMessage)), "test")
-
-	fmt.Printf("Voting request:\n")
-	fmt.Printf("  - Message: %s\n", string(votingMessage))
-	fmt.Printf("  - Signer App ID: %s\n", appID)
 	fmt.Printf("  - Local Approval: %t\n", localApproval)
-	fmt.Printf("  Note: Target App IDs and Required Votes will be fetched from server\n")
 
-	// Use VotingSign with the constructed HTTP request
-	// Target App IDs and required votes are now fetched from server configuration
-	votingResult, err := client.VotingSign(req, votingMessage, appID, localApproval)
+	// Sign with voting enabled
+	votingSignReq := &client.SignRequest{
+		Message:       votingMessage,
+		AppID:         appID,
+		EnableVoting:  true,
+		LocalApproval: localApproval,
+		HTTPRequest:   httpReq,
+	}
+
+	votingSignResult, err := teeClient.Sign(votingSignReq)
 	if err != nil {
 		log.Printf("Voting signature failed: %v", err)
 	} else {
 		fmt.Printf("\nVoting signature completed!\n")
-		fmt.Printf("Total Targets: %d\n", votingResult.TotalTargets)
-		fmt.Printf("Successful Votes: %d/%d\n", votingResult.SuccessfulVotes, votingResult.RequiredVotes)
-		fmt.Printf("Voting Complete: %t\n", votingResult.VotingComplete)
-		fmt.Printf("Final Result: %s\n", votingResult.FinalResult)
-
-		if votingResult.Signature != nil {
-			fmt.Printf("Signature: %x\n", votingResult.Signature)
-		} else {
-			fmt.Printf("Signature: No signature (voting failed or incomplete)\n")
+		fmt.Printf("Success: %t\n", votingSignResult.Success)
+		if votingSignResult.Signature != nil {
+			fmt.Printf("Signature: %x\n", votingSignResult.Signature)
 		}
 
-		// Print detailed vote results
-		fmt.Printf("\nVote Details:\n")
-		for i, detail := range votingResult.VoteDetails {
-			status := "FAILED"
-			if detail.Success && detail.Response {
-				status = "APPROVED"
-			} else if detail.Success && !detail.Response {
-				status = "REJECTED"
+		// Display voting information if available
+		if votingSignResult.VotingInfo != nil {
+			fmt.Printf("\nVoting Details:\n")
+			fmt.Printf("  - Total Targets: %d\n", votingSignResult.VotingInfo.TotalTargets)
+			fmt.Printf("  - Successful Votes: %d\n", votingSignResult.VotingInfo.SuccessfulVotes)
+			fmt.Printf("  - Required Votes: %d\n", votingSignResult.VotingInfo.RequiredVotes)
+
+			fmt.Printf("\nIndividual Votes:\n")
+			for i, vote := range votingSignResult.VotingInfo.VoteDetails {
+				fmt.Printf("  %d. Client %s: Success=%t\n", i+1, vote.ClientID, vote.Success)
 			}
-			fmt.Printf("  %d. %s: %s", i+1, detail.ClientID, status)
-			if detail.Error != "" {
-				fmt.Printf(" (Error: %s)", detail.Error)
-			}
-			fmt.Printf("\n")
+		}
+
+		if votingSignResult.Error != "" {
+			fmt.Printf("Error: %s\n", votingSignResult.Error)
 		}
 	}
 
