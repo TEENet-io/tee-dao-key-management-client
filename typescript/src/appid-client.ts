@@ -192,7 +192,8 @@ export class AppIDClient {
         containerIP: deployment.container_ip,
         deploymentClientAddress: deployment.deployment_client_address,
         votingSignPath: '', // No longer in individual deployment info
-        httpBaseURL: deployment.deployment_host
+        httpBaseURL: deployment.deployment_host,
+        servicePort: deployment.service_port // Container service port
       };
     }
     
@@ -230,6 +231,7 @@ export class AppIDClient {
         deploymentClientAddress: deployment.deployment_client_address,
         votingSignPath: votingSignPath, // Use shared voting sign path
         httpBaseURL: deployment.deployment_host, // Use deployment host as HTTP base URL
+        servicePort: deployment.service_port, // Container service port
         address: deployment.deployment_client_address.split(':')[0],
         port: parseInt(deployment.deployment_client_address.split(':')[1] || '50053', 10)
       };

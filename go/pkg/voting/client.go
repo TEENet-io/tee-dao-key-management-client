@@ -88,13 +88,20 @@ func MarkRequestAsForwarded(requestData []byte) ([]byte, error) {
 func SendHTTPVoteRequestWithHeaders(target *usermgmt.DeploymentTarget, requestData []byte, headers map[string]string, timeout time.Duration) (bool, error) {
 
 	// Build endpoint URL - send to deployment-client on port 8090 for HTTP forwarding
-	// Format: http://deployment-host:8090/proxy/{app_id}{voting_sign_path}
+	// Format: http://deployment-host:8090/proxy/{app_id}:{port}{voting_sign_path}
 	votingSignPath := target.VotingSignPath
 	if !strings.HasPrefix(votingSignPath, "/") {
 		votingSignPath = "/" + votingSignPath
 	}
 
-	proxyPath := fmt.Sprintf("/proxy/%s%s", target.AppID, votingSignPath)
+	// Include port in proxy path
+	var proxyPath string
+	if target.ServicePort > 0 {
+		proxyPath = fmt.Sprintf("/proxy/%s:%d%s", target.AppID, target.ServicePort, votingSignPath)
+	} else {
+		// Default to 8080 if no port specified
+		proxyPath = fmt.Sprintf("/proxy/%s:8080%s", target.AppID, votingSignPath)
+	}
 	
 	// Extract host from DeploymentClientAddress (format: host:port)
 	deploymentHost := target.DeploymentClientAddress

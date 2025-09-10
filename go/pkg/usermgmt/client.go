@@ -42,6 +42,7 @@ type DeploymentTarget struct {
 	DeploymentClientAddress string
 	VotingSignPath          string // HTTP API path for VotingSign requests
 	HTTPBaseURL             string // HTTP base URL for API forwarding
+	ServicePort             int32  // Container service port
 }
 
 // NewClient creates a new user management gRPC client
@@ -150,6 +151,7 @@ func (c *Client) GetDeploymentTargetsForVotingSign(appID string, timeout time.Du
 			DeploymentClientAddress: deployment.DeploymentClientAddress,
 			VotingSignPath:          votingSignPath, // Use shared voting sign path
 			HTTPBaseURL:             deployment.DeploymentHost, // Use deployment host as HTTP base URL
+			ServicePort:             deployment.ServicePort, // Container service port
 		}
 	}
 

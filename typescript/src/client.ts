@@ -11,7 +11,7 @@
 //
 // -----------------------------------------------------------------------------
 
-import { NodeConfig, ClientOptions, Constants, Protocol, Curve, VotingResult, VoteDetail, VotingHandler, VotingRequest, VotingResponse, DeploymentTarget, SignRequest, SignResult, VotingInfo } from './types';
+import { NodeConfig, ClientOptions, Constants, Protocol, Curve, VotingResult, VoteDetail, VotingHandler, VotingRequest, VotingResponse, SignRequest, SignResult, VotingInfo } from './types';
 import { ConfigClient } from './config-client';
 import { TaskClient } from './task-client';
 import { AppIDClient } from './appid-client';
@@ -448,12 +448,10 @@ export class Client {
             // Modify request body to mark as forwarded
             let modifiedRequestData = voteRequestData;
             if (voteRequestData) {
-              const requestMap = JSON.parse(new TextDecoder().decode(voteRequestData));
-              requestMap.is_forwarded = true;
-              modifiedRequestData = new TextEncoder().encode(JSON.stringify(requestMap));
+              modifiedRequestData = VotingClient.markRequestAsForwarded(voteRequestData);
             }
 
-            const approved = await this.sendHTTPVoteRequest(target, modifiedRequestData || new Uint8Array(), headers);
+            const approved = await VotingClient.sendHTTPVoteRequestWithHeaders(target, modifiedRequestData || new Uint8Array(), headers || null, this.timeout);
 
             return {
               clientId: targetAppId,
@@ -520,97 +518,8 @@ export class Client {
     return votingResult;
   }
 
-  // Helper method to send HTTP vote request to a target app
-  private async sendHTTPVoteRequest(target: DeploymentTarget, requestData: Uint8Array, additionalHeaders?: { [key: string]: string }): Promise<boolean> {
-    // Build endpoint URL - send to deployment-client on port 8090 for HTTP forwarding
-    // Format: http://deployment-host:8090/proxy/{app_id}{voting_sign_path}
-    const deploymentHost = target.deploymentClientAddress.split(':')[0]; // Extract host from gRPC address
-    let votingSignPath = target.votingSignPath;
-    if (!votingSignPath.startsWith('/')) {
-      votingSignPath = '/' + votingSignPath;
-    }
-
-    const proxyPath = `/proxy/${target.appID}${votingSignPath}`;
-    const endpoint = `http://${deploymentHost}:8090${proxyPath}`;
-
-    return new Promise((resolve, reject) => {
-      const http = require('http');
-      
-      const headers: { [key: string]: string } = {
-        'Content-Type': 'application/json'
-      };
-
-      // Add authentication headers if provided (for proxy forwarding)
-      if (target.authHeaders) {
-        Object.assign(headers, target.authHeaders);
-      }
-
-      // Add additional headers extracted from HTTP request
-      if (additionalHeaders) {
-        Object.assign(headers, additionalHeaders);
-      }
-
-      const options = {
-        method: 'POST',
-        headers,
-        timeout: this.timeout
-      };
-
-      console.log(`📤 Sending vote request to ${target.appID} via deployment-client: ${endpoint}`);
-      
-      const req = http.request(endpoint, options, (res: any) => {
-        let data = '';
-        
-        res.on('data', (chunk: any) => {
-          data += chunk;
-        });
-
-        res.on('end', () => {
-          // Check HTTP status
-          if (res.statusCode !== 200) {
-            reject(new Error(`HTTP vote request failed with status ${res.statusCode}: ${data}`));
-            return;
-          }
-
-          try {
-            // Parse response - only check for approved field
-            const response = JSON.parse(data);
-            const approved = response.approved || false;
-            
-            console.log(`📥 Received vote response from ${target.appID}: approved=${approved}`);
-            resolve(approved);
-          } catch (error) {
-            reject(new Error(`failed to parse vote response: ${error}`));
-          }
-        });
-      });
-
-      req.on('error', (error: any) => {
-        reject(new Error(`HTTP vote request failed: ${error}`));
-      });
-
-      req.on('timeout', () => {
-        req.destroy();
-        reject(new Error('HTTP vote request timeout'));
-      });
-
-      // Send the request data
-      req.write(requestData);
-      req.end();
-    });
-  }
-
-  // Helper method to extract headers from HTTP request
+  // Helper method to extract headers from HTTP request - delegates to VotingClient
   private extractHeadersFromRequest(req: IncomingMessage): { [key: string]: string } {
-    const headers: { [key: string]: string } = {};
-    
-    for (const [name, value] of Object.entries(req.headers)) {
-      if (value) {
-        // Take first value if it's an array, otherwise use the string value
-        headers[name] = Array.isArray(value) ? value[0] : value;
-      }
-    }
-    
-    return headers;
+    return VotingClient.extractHeadersFromRequest(req);
   }
 }

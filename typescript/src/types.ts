@@ -130,6 +130,7 @@ export interface DeploymentTarget {
   deploymentClientAddress: string;  // gRPC deployment client address
   votingSignPath: string;           // HTTP API path for VotingSign requests
   httpBaseURL: string;              // HTTP base URL for API forwarding
+  servicePort?: number;             // Container service port
   authHeaders?: { [key: string]: string }; // Optional authentication headers
 }
 
