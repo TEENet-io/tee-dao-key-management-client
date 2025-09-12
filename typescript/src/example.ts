@@ -11,7 +11,7 @@
 //
 // -----------------------------------------------------------------------------
 
-import { Client, SignRequest } from './index';
+import { Client, SignRequest, SignResult } from './index';
 // @ts-ignore
 import * as wtfnode from 'wtfnode';
 
@@ -112,8 +112,9 @@ async function main() {
       httpRequest: httpReq
     };
 
+    let votingSignResult: SignResult | undefined;
     try {
-      const votingSignResult = await teeClient.sign(votingSignReq);
+      votingSignResult = await teeClient.sign(votingSignReq);
       if (votingSignResult.success) {
         console.log('\nVoting signature completed!');
         console.log(`Success: ${votingSignResult.success}`);
@@ -129,7 +130,7 @@ async function main() {
           console.log(`  - Required Votes: ${votingSignResult.votingInfo.requiredVotes}`);
           
           console.log('\nIndividual Votes:');
-          votingSignResult.votingInfo.voteDetails.forEach((vote, i) => {
+          votingSignResult.votingInfo.voteDetails.forEach((vote: any, i: number) => {
             console.log(`  ${i + 1}. Client ${vote.clientId}: Success=${vote.success}`);
           });
         }
@@ -142,6 +143,64 @@ async function main() {
       }
     } catch (error) {
       console.error(`Voting signature failed: ${error}`);
+    }
+
+    // Example: Verify signature
+    console.log('\n4. Verify signature');
+    try {
+      // First, let's sign a message to get a signature to verify
+      const verifyTestMessage = Buffer.from('Test message for verification');
+      const verifySignReq: SignRequest = {
+        message: verifyTestMessage,
+        appID: appID,
+        enableVoting: false
+      };
+      
+      const verifySignResult = await teeClient.sign(verifySignReq);
+      if (verifySignResult.success && verifySignResult.signature) {
+        // Now verify the signature we just created
+        const isValid = await teeClient.verify(
+          verifyTestMessage, 
+          Buffer.from(verifySignResult.signature), 
+          appID
+        );
+        console.log(`Signature verification result: ${isValid}`);
+        console.log(`  - Message: ${verifyTestMessage.toString()}`);
+        console.log(`  - Signature: ${Buffer.from(verifySignResult.signature).toString('hex')}`);
+        console.log(`  - App ID: ${appID}`);
+        console.log(`  - Valid: ${isValid}`);
+
+        // Test with wrong message
+        const wrongMessage = Buffer.from('Wrong message');
+        const isValidWrong = await teeClient.verify(
+          wrongMessage, 
+          Buffer.from(verifySignResult.signature), 
+          appID
+        );
+        console.log(`\nVerification with wrong message: ${isValidWrong} (expected false)`);
+      }
+    } catch (error) {
+      console.error(`Verification failed: ${error}`);
+    }
+
+    // Example: Verify voting signature
+    console.log('\n5. Verify voting signature');
+    if (votingSignResult && votingSignResult.signature) {
+      try {
+        // Verify the voting signature from section 3
+        const isValid = await teeClient.verify(
+          Buffer.from(votingMessage), 
+          Buffer.from(votingSignResult.signature), 
+          appID
+        );
+        console.log(`Voting signature verification result: ${isValid}`);
+        console.log(`  - Message: ${new TextDecoder().decode(votingMessage)}`);
+        console.log(`  - Signature: ${Buffer.from(votingSignResult.signature).toString('hex')}`);
+        console.log(`  - App ID: ${appID}`);
+        console.log(`  - Valid: ${isValid}`);
+      } catch (error) {
+        console.error(`Voting signature verification failed: ${error}`);
+      }
     }
 
     console.log('\n=== Example completed ===');

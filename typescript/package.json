@@ -13,6 +13,13 @@
   "dependencies": {
     "@grpc/grpc-js": "^1.11.0",
     "@grpc/proto-loader": "^0.7.13",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^2.0.0",
+    "@types/bn.js": "^5.2.0",
+    "@types/elliptic": "^6.4.18",
+    "asn1.js": "^5.4.1",
+    "bn.js": "^5.2.2",
+    "elliptic": "^6.6.1",
     "winston": "^3.11.0"
   },
   "devDependencies": {

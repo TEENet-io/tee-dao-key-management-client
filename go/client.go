@@ -30,10 +30,12 @@ import (
 	"github.com/TEENet-io/teenet-sdk/go/pkg/task"
 	"github.com/TEENet-io/teenet-sdk/go/pkg/usermgmt"
 	"github.com/TEENet-io/teenet-sdk/go/pkg/utils"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/verification"
 	"github.com/TEENet-io/teenet-sdk/go/pkg/voting"
 	pb "github.com/TEENet-io/teenet-sdk/go/proto/voting"
 	"google.golang.org/grpc"
 )
+
 
 // VoteDetail contains details of each vote
 type VoteDetail struct {
@@ -474,6 +476,47 @@ func (c *Client) Sign(req *SignRequest) (*SignResult, error) {
 	// Perform voting and signing
 	return c.votingSignWithHeaders(req.Message, req.AppID, req.LocalApproval, voteRequestData, headers)
 }
+
+// Verify verifies a signature against a message using the public key associated with the given app ID
+func (c *Client) Verify(message, signature []byte, appID string) (bool, error) {
+	if c.userMgmtClient == nil {
+		return false, fmt.Errorf("client not initialized")
+	}
+
+	// Get public key from user management system
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+
+	publicKeyStr, protocolStr, curveStr, err := c.userMgmtClient.GetPublicKeyByAppID(ctx, appID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get public key: %w", err)
+	}
+
+	// Parse protocol and curve strings to uint32
+	protocol, err := utils.ParseProtocol(protocolStr)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse protocol: %w", err)
+	}
+
+	curve, err := utils.ParseCurve(curveStr)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse curve: %w", err)
+	}
+
+	// Decode the public key from hex (remove 0x prefix if present)
+	publicKeyHex := publicKeyStr
+	if strings.HasPrefix(publicKeyStr, "0x") || strings.HasPrefix(publicKeyStr, "0X") {
+		publicKeyHex = publicKeyStr[2:]
+	}
+	publicKey, err := hex.DecodeString(publicKeyHex)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode public key from hex: %w", err)
+	}
+
+	// Verify the signature using the verification package
+	return verification.VerifySignature(message, publicKey, signature, protocol, curve)
+}
+
 
 // Close closes client connections
 func (c *Client) Close() error {

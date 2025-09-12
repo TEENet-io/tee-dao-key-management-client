@@ -16,6 +16,7 @@ import { ConfigClient } from './config-client';
 import { TaskClient } from './task-client';
 import { AppIDClient } from './appid-client';
 import { VotingClient } from './voting-client';
+import { verifySignature } from './verification';
 import * as tls from 'tls';
 import * as grpc from '@grpc/grpc-js';
 import { IncomingMessage } from 'http';
@@ -524,5 +525,45 @@ export class Client {
   // Helper method to extract headers from HTTP request - delegates to VotingClient
   private extractHeadersFromRequest(req: IncomingMessage): { [key: string]: string } {
     return VotingClient.extractHeadersFromRequest(req);
+  }
+
+  /**
+   * Verifies a signature against a message using the public key associated with the given app ID
+   * @param message - The original message that was signed
+   * @param signature - The signature to verify
+   * @param appID - The app ID whose public key will be used for verification
+   * @returns true if the signature is valid, false otherwise
+   */
+  async verify(message: Buffer, signature: Buffer, appID: string): Promise<boolean> {
+    if (!this.appIDClient) {
+      throw new Error('Client not initialized');
+    }
+
+    try {
+      // Get public key from user management system
+      const { publickey, protocol, curve } = await this.getPublicKeyByAppID(appID);
+
+      // Parse protocol and curve
+      const protocolNum = this.parseProtocol(protocol);
+      const curveNum = this.parseCurve(curve);
+
+      // Decode public key from hex (remove 0x prefix if present)
+      const publicKeyHex = publickey.startsWith('0x') || publickey.startsWith('0X') 
+        ? publickey.slice(2) 
+        : publickey;
+      const publicKeyBuffer = Buffer.from(publicKeyHex, 'hex');
+
+      // Verify the signature using the verification module
+      return await verifySignature(
+        message,
+        publicKeyBuffer,
+        signature,
+        protocolNum as typeof Protocol[keyof typeof Protocol],
+        curveNum as typeof Curve[keyof typeof Curve]
+      );
+    } catch (error) {
+      console.error(`Failed to verify signature: ${error}`);
+      return false;
+    }
   }
 }

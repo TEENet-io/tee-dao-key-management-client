@@ -145,5 +145,46 @@ func main() {
 		}
 	}
 
+	// Example: Verify signature
+	fmt.Println("\n4. Verify signature")
+	if signResult != nil && signResult.Signature != nil {
+		// Verify the signature we just created
+		isValid, err := teeClient.Verify(message, signResult.Signature, appID)
+		if err != nil {
+			log.Printf("Verification failed: %v", err)
+		} else {
+			fmt.Printf("Signature verification result: %v\n", isValid)
+			fmt.Printf("  - Message: %s\n", string(message))
+			fmt.Printf("  - Signature: %x\n", signResult.Signature)
+			fmt.Printf("  - App ID: %s\n", appID)
+			fmt.Printf("  - Valid: %v\n", isValid)
+		}
+
+		// Test with wrong message
+		wrongMessage := []byte("Wrong message")
+		isValid, err = teeClient.Verify(wrongMessage, signResult.Signature, appID)
+		if err != nil {
+			log.Printf("Verification with wrong message failed: %v", err)
+		} else {
+			fmt.Printf("\nVerification with wrong message: %v (expected false)\n", isValid)
+		}
+	}
+
+	// Example: Verify voting signature
+	fmt.Println("\n5. Verify voting signature")
+	if votingSignResult != nil && votingSignResult.Signature != nil {
+		// Verify the voting signature
+		isValid, err := teeClient.Verify(votingMessage, votingSignResult.Signature, appID)
+		if err != nil {
+			log.Printf("Voting signature verification failed: %v", err)
+		} else {
+			fmt.Printf("Voting signature verification result: %v\n", isValid)
+			fmt.Printf("  - Message: %s\n", string(votingMessage))
+			fmt.Printf("  - Signature: %x\n", votingSignResult.Signature)
+			fmt.Printf("  - App ID: %s\n", appID)
+			fmt.Printf("  - Valid: %v\n", isValid)
+		}
+	}
+
 	fmt.Println("\n=== Example completed ===")
 }
