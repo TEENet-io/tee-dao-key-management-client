@@ -253,8 +253,11 @@ export class Client {
     const protocolNum = this.parseProtocol(protocol);
     const curveNum = this.parseCurve(curve);
 
-    // Decode public key from base64
-    const publicKeyBuffer = Buffer.from(publickey, 'base64');
+    // Decode public key from hex (remove 0x prefix if present)
+    const publicKeyHex = publickey.startsWith('0x') || publickey.startsWith('0X') 
+      ? publickey.slice(2) 
+      : publickey;
+    const publicKeyBuffer = Buffer.from(publicKeyHex, 'hex');
 
     // Sign the message directly through taskClient
     return this.taskClient.sign(message, new Uint8Array(publicKeyBuffer), protocolNum, curveNum, this.timeout);

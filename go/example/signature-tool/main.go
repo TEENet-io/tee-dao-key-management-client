@@ -224,12 +224,16 @@ func main() {
 			return
 		}
 
-		// Decode public key and signature from hex/base64
-		publicKeyBytes, err := base64.StdEncoding.DecodeString(publicKey)
+		// Decode public key from hex (remove 0x prefix if present)
+		publicKeyHex := publicKey
+		if strings.HasPrefix(publicKey, "0x") || strings.HasPrefix(publicKey, "0X") {
+			publicKeyHex = publicKey[2:]
+		}
+		publicKeyBytes, err := hex.DecodeString(publicKeyHex)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, VerifyWithAppIDResponse{
 				Success: false,
-				Error:   "Invalid public key format: " + err.Error(),
+				Error:   "Invalid public key format (must be hex): " + err.Error(),
 			})
 			return
 		}
