@@ -1,5 +1,5 @@
-github.com/TEENet-io/tee-dao-key-management-client/go v0.0.0-20250910092719-76a465cd4cbb h1:1cga1eBDwLeDQYzb/s8dDRznjZRBqRgCaI8bZWLGFGo=
-github.com/TEENet-io/tee-dao-key-management-client/go v0.0.0-20250910092719-76a465cd4cbb/go.mod h1:o4sT+q3Z4tmkD5lAlg0WaOlElIWf9H0GoLn6+RNc/8A=
+github.com/TEENet-io/teenet-sdk/go v0.0.0-20250912024231-6dfe9e939efb h1:+N6JEo9qVI023ERZoJg6Y1xKsCrdFoQtLGGdS0cZGsM=
+github.com/TEENet-io/teenet-sdk/go v0.0.0-20250912024231-6dfe9e939efb/go.mod h1:Eui9+kaygEuokpucUbGybnh0lzsoEXnEcwLtxaLn6Ig=
 github.com/bytedance/sonic v1.14.0 h1:/OfKt8HFw0kh2rj8N0F6C/qPGRESq0BbaNZgcNXXzQQ=
 github.com/bytedance/sonic v1.14.0/go.mod h1:WoEbx8WTcFJfzCe0hbmyTGrfjt8PzNEBdxlNUO24NhA=
 github.com/bytedance/sonic/loader v0.3.0 h1:dskwH8edlzNMctoruo8FPTJDF3vLtDT0sXZwvZJyqeA=

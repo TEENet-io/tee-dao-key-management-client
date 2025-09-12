@@ -37,8 +37,8 @@ docker run -d \
 
 ```bash
 # Clone the repository
-git clone https://github.com/TEENet-io/tee-dao-key-management-client.git
-cd tee-dao-key-management-client/go/example/signature-tool
+git clone https://github.com/TEENet-io/teenet-sdk.git
+cd teenet-sdk/go/example/signature-tool
 
 # Build the application
 go build -o signature-tool .
@@ -330,8 +330,8 @@ signature-tool/
 
 ```bash
 # Clone repository
-git clone https://github.com/TEENet-io/tee-dao-key-management-client.git
-cd tee-dao-key-management-client/go/example/signature-tool
+git clone https://github.com/TEENet-io/teenet-sdk.git
+cd teenet-sdk/go/example/signature-tool
 
 # Install dependencies
 go mod download
@@ -440,7 +440,7 @@ The application logs important events including:
 ## Support
 
 For issues, questions, or contributions:
-- GitHub Issues: [https://github.com/TEENet-io/tee-dao-key-management-client/issues](https://github.com/TEENet-io/tee-dao-key-management-client/issues)
+- GitHub Issues: [https://github.com/TEENet-io/teenet-sdk/issues](https://github.com/TEENet-io/teenet-sdk/issues)
 - Documentation: [TEENet Documentation](https://docs.teenet.io)
 
 ## License

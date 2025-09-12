@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/TEENet-io/tee-dao-key-management-client/go"
+	client "github.com/TEENet-io/teenet-sdk/go"
 	"github.com/gin-gonic/gin"
 )
 

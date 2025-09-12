@@ -1,6 +1,6 @@
-# TEE DAO Key Management Client
+# TEENet SDK
 
-A comprehensive TEENet distributed key management client library with multi-language support and distributed voting signature mechanism, including a complete local testing environment.
+A comprehensive TEENet sdk library with multi-language support and distributed voting signature mechanism, including a complete local testing environment.
 
 > **⚠️ Breaking Change in v2.0**: New unified `Sign()` API replaces `SignWithAppID` and `VotingSign` methods. Target app IDs and required votes are now automatically fetched from server configuration. See [Latest Updates](#-latest-updates-v20) for details.
 

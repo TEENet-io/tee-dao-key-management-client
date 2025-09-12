@@ -24,7 +24,7 @@ import (
 	"math/big"
 	"strconv"
 
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/constants"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/constants"
 )
 
 // Helper functions to convert string to protocol/curve constants
