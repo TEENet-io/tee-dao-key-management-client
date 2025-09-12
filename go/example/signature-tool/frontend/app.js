@@ -84,11 +84,9 @@ async function signWithAppID() {
             }, null, 2);
             showResult(resultDiv, result, 'success');
             
-            // Auto-fill verification form if empty
-            if (!document.getElementById('verifyMessage1').value) {
-                document.getElementById('verifyMessage1').value = message;
-                document.getElementById('verifySignature1').value = data.signature;
-            }
+            // Auto-fill verification form with the latest signature
+            document.getElementById('verifyMessage1').value = message;
+            document.getElementById('verifySignature1').value = data.signature;
         } else {
             showResult(resultDiv, 'Error: ' + data.error, 'error');
         }

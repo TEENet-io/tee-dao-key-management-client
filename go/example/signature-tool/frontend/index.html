@@ -4,15 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TEENet Signature Tool</title>
+    <style>
+        /* Critical CSS to prevent FOUC */
+        body { 
+            opacity: 0; 
+            transition: opacity 0.3s ease-in-out;
+        }
+        body.loaded { 
+            opacity: 1; 
+        }
+    </style>
     <script>
-        // Set CSS path dynamically based on current URL
+        // Set CSS path dynamically based on current URL (synchronously)
         (function() {
             const currentPath = window.location.pathname;
             const cssPath = currentPath.endsWith('/') ? currentPath + 'styles.css' : currentPath + '/styles.css';
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = cssPath;
-            document.head.appendChild(link);
+            // Write the link tag directly to ensure it blocks rendering
+            document.write('<link rel="stylesheet" href="' + cssPath + '">');
         })();
     </script>
 </head>
@@ -111,6 +119,16 @@
     </div>
 
     <script>
+        // Show body once CSS is loaded
+        window.addEventListener('load', function() {
+            document.body.classList.add('loaded');
+        });
+        
+        // Also show after a short delay as fallback
+        setTimeout(function() {
+            document.body.classList.add('loaded');
+        }, 100);
+        
         // Initialize app and load APP_ID
         console.log('Inline script executing');
         

@@ -1,18 +1,21 @@
 # TEENet SDK
 
-A comprehensive TEENet sdk library with multi-language support and distributed voting signature mechanism, including a complete local testing environment.
+A comprehensive TEENet sdk library with multi-language support, distributed voting signature mechanism, and signature verification, including a complete local testing environment.
 
-> **⚠️ Breaking Change in v2.0**: New unified `Sign()` API replaces `SignWithAppID` and `VotingSign` methods. Target app IDs and required votes are now automatically fetched from server configuration. See [Latest Updates](#-latest-updates-v20) for details.
+> **🎉 New in v2.1**: Added signature verification support with `Verify()` method for both Go and TypeScript SDKs. See [Latest Updates](#-latest-updates-v21) for details.
+> 
+> **⚠️ Breaking Change in v2.0**: New unified `Sign()` API replaces `SignWithAppID` and `VotingSign` methods. Target app IDs and required votes are now automatically fetched from server configuration.
 
 ## 🚀 Core Components
 
 ### 1. Client Libraries
-- **Go** - Production-ready implementation with distributed voting signatures
-- **TypeScript** - Node.js compatible implementation
+- **Go** - Production-ready implementation with distributed voting signatures and signature verification
+- **TypeScript** - Node.js compatible implementation with full feature parity
 
 ### 2. Example Applications
-- **TEENet Signature Tool** - Unified web application supporting digital signatures and distributed voting
+- **TEENet Signature Tool** - Unified web application supporting digital signatures, verification, and distributed voting
 - **Distributed Voting Signatures** - M-of-N threshold voting mechanism
+- **Signature Verification** - Verify signatures across all supported protocols and curves
 - **Multi-Protocol Support** - ECDSA and Schnorr protocols
 - **Multi-Curve Support** - ED25519, SECP256K1, SECP256R1 curves
 - **Docker Ready** - Containerized deployment
@@ -34,6 +37,7 @@ A comprehensive TEENet sdk library with multi-language support and distributed v
 
 ### Key Management
 - **Secure Message Signing**: Sign messages using distributed cryptographic keys
+- **Signature Verification**: Verify signatures with automatic protocol and curve detection
 - **AppID Service Integration**: Get public keys and sign messages using AppID
 - **Multi-Protocol Support**: ECDSA and Schnorr signature protocols
 - **Multi-Curve Support**: ED25519, SECP256K1, SECP256R1 curves
@@ -103,6 +107,109 @@ docker run -p 8080:8080 \
 cd mock-server
 ./stop-test-env.sh
 ```
+
+## API Reference
+
+### Core Methods
+
+#### Sign (Unified API)
+```go
+// Go
+result, err := client.Sign(request *SignRequest) (*SignResult, error)
+
+// TypeScript
+result = await client.sign(request: SignRequest): Promise<SignResult>
+```
+
+#### GetPublicKeyByAppID
+```go
+// Go
+publicKey, protocol, curve, err := client.GetPublicKeyByAppID(appID string)
+
+// TypeScript
+const { publicKey, protocol, curve } = await client.getPublicKeyByAppID(appID: string)
+```
+
+#### Verify
+```go
+// Go
+valid, err := client.Verify(message []byte, signature []byte, appID string) (bool, error)
+
+// TypeScript
+valid = await client.verify(message: Buffer, signature: Buffer, appID: string): Promise<boolean>
+```
+
+### Core Types
+
+#### SignRequest
+```go
+// Go
+type SignRequest struct {
+    Message       []byte        // Message to sign
+    AppID         string        // Application identifier
+    EnableVoting  bool          // Enable multi-party voting
+    LocalApproval bool          // Local voting decision (for voting)
+    HTTPRequest   *http.Request // HTTP request context (for voting)
+}
+
+// TypeScript
+interface SignRequest {
+    message: Uint8Array;       // Message to sign
+    appID: string;             // Application identifier
+    enableVoting?: boolean;    // Enable multi-party voting
+    localApproval?: boolean;   // Local voting decision
+    httpRequest?: any;         // HTTP request object
+}
+```
+
+#### SignResult
+```go
+// Go
+type SignResult struct {
+    Success    bool        // Operation success
+    Signature  []byte      // Generated signature
+    Error      string      // Error message if failed
+    VotingInfo *VotingInfo // Voting details (when voting enabled)
+}
+
+// TypeScript
+interface SignResult {
+    success: boolean;          // Operation success
+    signature?: Uint8Array;    // Generated signature
+    error?: string;            // Error message
+    votingInfo?: VotingInfo;   // Voting details
+}
+```
+
+#### VotingInfo
+```go
+// Go
+type VotingInfo struct {
+    TotalTargets    int          // Total voting nodes
+    SuccessfulVotes int          // Number of approvals
+    RequiredVotes   int          // Threshold for approval
+    VoteDetails     []VoteDetail // Individual vote information
+}
+
+// TypeScript
+interface VotingInfo {
+    totalTargets: number;      // Total voting nodes
+    successfulVotes: number;    // Number of approvals
+    requiredVotes: number;      // Threshold for approval
+    voteDetails: VoteDetail[];  // Individual vote information
+}
+```
+
+### Protocol and Curve Constants
+
+**Protocols:**
+- `ProtocolECDSA` (1)
+- `ProtocolSchnorr` (2)
+
+**Curves:**
+- `CurveED25519` (1)
+- `CurveSECP256K1` (2)
+- `CurveSECP256R1` (3)
 
 ## 🗳️ Distributed Voting Signature Workflow
 
@@ -252,9 +359,19 @@ func main() {
         fmt.Printf("  - Curve: %s\n", curve)
         fmt.Printf("  - Public Key: %s\n", publicKey)
     }
+
+    // Example 3: Verify signature
+    if result.Success && result.Signature != nil {
+        valid, err := teeClient.Verify(message, result.Signature, appID)
+        if err != nil {
+            log.Printf("Verification failed: %v", err)
+        } else {
+            fmt.Printf("Signature valid: %v\n", valid)
+        }
+    }
 }
 
-// Example 3: Voting signature in HTTP handler
+// Example 4: Voting signature in HTTP handler
 func handleVotingRequest(w http.ResponseWriter, r *http.Request) {
     var req struct {
         Message     string `json:"message"`
@@ -336,11 +453,17 @@ async function main() {
   console.log(`  - Protocol: ${protocol}`);
   console.log(`  - Curve: ${curve}`);
   console.log(`  - Public Key: ${publicKey}`);
+
+  // Example 3: Verify signature
+  if (result.success && result.signature) {
+    const valid = await client.verify(message, result.signature, appID);
+    console.log(`Signature valid: ${valid}`);
+  }
   
   await client.close();
 }
 
-// Example 3: Voting signature in Express handler
+// Example 4: Voting signature in Express handler
 app.post('/vote', async (req, res) => {
   // Extract message from incoming request
   const message = Buffer.from(req.body.message, 'base64');
@@ -371,118 +494,24 @@ app.post('/vote', async (req, res) => {
 main().catch(console.error);
 ```
 
-## API Reference
-
-### Core Methods
-
-#### Sign (Unified API)
-```go
-// Go
-result, err := client.Sign(request *SignRequest) (*SignResult, error)
-
-// TypeScript
-result = await client.sign(request: SignRequest): Promise<SignResult>
-```
-
-#### GetPublicKeyByAppID
-```go
-// Go
-publicKey, protocol, curve, err := client.GetPublicKeyByAppID(appID string)
-
-// TypeScript
-const { publicKey, protocol, curve } = await client.getPublicKeyByAppID(appID: string)
-```
-
-### Core Types
-
-#### SignRequest
-```go
-// Go
-type SignRequest struct {
-    Message       []byte        // Message to sign
-    AppID         string        // Application identifier
-    EnableVoting  bool          // Enable multi-party voting
-    LocalApproval bool          // Local voting decision (for voting)
-    HTTPRequest   *http.Request // HTTP request context (for voting)
-}
-
-// TypeScript
-interface SignRequest {
-    message: Uint8Array;       // Message to sign
-    appID: string;             // Application identifier
-    enableVoting?: boolean;    // Enable multi-party voting
-    localApproval?: boolean;   // Local voting decision
-    httpRequest?: any;         // HTTP request object
-}
-```
-
-#### SignResult
-```go
-// Go
-type SignResult struct {
-    Success    bool        // Operation success
-    Signature  []byte      // Generated signature
-    Error      string      // Error message if failed
-    VotingInfo *VotingInfo // Voting details (when voting enabled)
-}
-
-// TypeScript
-interface SignResult {
-    success: boolean;          // Operation success
-    signature?: Uint8Array;    // Generated signature
-    error?: string;            // Error message
-    votingInfo?: VotingInfo;   // Voting details
-}
-```
-
-#### VotingInfo
-```go
-// Go
-type VotingInfo struct {
-    TotalTargets    int          // Total voting nodes
-    SuccessfulVotes int          // Number of approvals
-    RequiredVotes   int          // Threshold for approval
-    VoteDetails     []VoteDetail // Individual vote information
-}
-
-// TypeScript
-interface VotingInfo {
-    totalTargets: number;      // Total voting nodes
-    successfulVotes: number;    // Number of approvals
-    requiredVotes: number;      // Threshold for approval
-    voteDetails: VoteDetail[];  // Individual vote information
-}
-```
-
-### Protocol and Curve Constants
-
-**Protocols:**
-- `ProtocolECDSA` (1)
-- `ProtocolSchnorr` (2)
-
-**Curves:**
-- `CurveED25519` (1)
-- `CurveSECP256K1` (2)
-- `CurveSECP256R1` (3)
-
 ## Project Structure
 
 ```
 ├── go/                     # Go client implementation
-│   ├── client.go          # Main client (with distributed voting)
+│   ├── client.go          # Main client (with distributed voting and verification)
 │   ├── pkg/               # Core packages
 │   │   ├── config/        # Configuration client
 │   │   ├── constants/     # Protocol and curve constants
 │   │   ├── task/          # Task client for signing
 │   │   ├── usermgmt/      # User management client
 │   │   ├── utils/         # Utility functions
+│   │   ├── verification/  # Signature verification
 │   │   └── voting/        # Voting service
 │   ├── example/           # Go examples
-│   │   ├── main.go        # Basic client example
+│   │   ├── main.go        # Basic client example with verification
 │   │   └── signature-tool/ # Signature tool web application
 │   │       ├── main.go    # Web application main program
 │   │       ├── types.go   # Data structures (simplified)
-│   │       ├── crypto.go  # Cryptographic operations
 │   │       ├── server.go  # Static file service (no-cache)
 │   │       ├── voting.go  # Voting processing logic
 │   │       ├── frontend/  # Frontend files
@@ -491,12 +520,14 @@ interface VotingInfo {
 │   └── proto/             # Generated Go protobuf files
 ├── typescript/            # TypeScript client implementation
 │   ├── src/               # TypeScript source code
-│   │   ├── client.ts      # Main client
+│   │   ├── client.ts      # Main client with verification
 │   │   ├── config-client.ts # Configuration client
 │   │   ├── task-client.ts # Task client
 │   │   ├── appid-client.ts # AppID client
 │   │   ├── types.ts       # Types and constants
-│   │   └── example.ts     # TypeScript example
+│   │   ├── verification/  # Signature verification
+│   │   │   └── verify.ts  # Verification implementation
+│   │   └── example.ts     # TypeScript example with verification
 │   ├── proto/             # Protobuf definitions
 │   └── dist/              # Compiled JavaScript
 ├── mock-server/           # Complete Mock server environment
@@ -518,7 +549,21 @@ interface VotingInfo {
 - **TEENet Signature Tool**: See [go/example/signature-tool/](go/example/signature-tool/) for detailed documentation
 - **Mock Server**: See [mock-server/README.md](mock-server/README.md) for detailed documentation
 
-## 🆕 Latest Updates (v2.0)
+## 🆕 Latest Updates (v2.1)
+
+### ⭐ New Features (v2.1)
+1. **Signature Verification**: Added `Verify()` method to both Go and TypeScript SDKs
+   - Automatic protocol and curve detection based on AppID
+   - Support for all curves: ED25519, SECP256K1, SECP256R1
+   - Support for all protocols: ECDSA, Schnorr, EdDSA
+   - Multiple key formats supported (compressed, uncompressed, raw)
+   - Production-ready implementation using established libraries (btcec for Go, elliptic for TypeScript)
+
+2. **Updated Signature Tool**: Now uses SDK's built-in verification instead of custom implementation
+   - Cleaner codebase with removed redundant verification code
+   - Consistent verification across all SDK consumers
+
+## 🆕 Previous Updates (v2.0)
 
 ### ⭐ Major API Changes
 1. **Unified Sign API**: New `Sign()` method replaces separate `SignWithAppID` and `VotingSign` methods

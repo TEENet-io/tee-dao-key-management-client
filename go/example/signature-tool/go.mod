@@ -5,15 +5,19 @@ go 1.24.2
 toolchain go1.24.5
 
 require (
-	github.com/TEENet-io/teenet-sdk/go v0.0.0-20250912063719-8a3f3a35f267
+	github.com/TEENet-io/teenet-sdk/go v0.0.0-20250912074619-9e592fb9b727
 	github.com/gin-gonic/gin v1.10.1
 )
 
 require (
+	github.com/btcsuite/btcd/btcec/v2 v2.3.5 // indirect
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.1 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
+	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.10 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect

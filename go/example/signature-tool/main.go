@@ -193,7 +193,7 @@ func main() {
 			return
 		}
 
-		// Get public key by app ID
+		// Get public key info (for response)
 		publicKey, protocol, curve, err := teeClient.GetPublicKeyByAppID(req.AppID)
 		if err != nil {
 			log.Printf("Failed to get public key for app ID %s: %v", req.AppID, err)
@@ -205,39 +205,7 @@ func main() {
 			return
 		}
 
-		// Parse protocol and curve
-		protocolNum, err := parseProtocol(protocol)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, VerifyWithAppIDResponse{
-				Success: false,
-				Error:   "Invalid protocol: " + err.Error(),
-			})
-			return
-		}
-
-		curveNum, err := parseCurve(curve)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, VerifyWithAppIDResponse{
-				Success: false,
-				Error:   "Invalid curve: " + err.Error(),
-			})
-			return
-		}
-
-		// Decode public key from hex (remove 0x prefix if present)
-		publicKeyHex := publicKey
-		if strings.HasPrefix(publicKey, "0x") || strings.HasPrefix(publicKey, "0X") {
-			publicKeyHex = publicKey[2:]
-		}
-		publicKeyBytes, err := hex.DecodeString(publicKeyHex)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, VerifyWithAppIDResponse{
-				Success: false,
-				Error:   "Invalid public key format (must be hex): " + err.Error(),
-			})
-			return
-		}
-
+		// Decode signature from hex
 		signatureBytes, err := hex.DecodeString(req.Signature)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, VerifyWithAppIDResponse{
@@ -247,8 +215,8 @@ func main() {
 			return
 		}
 
-		// Verify the signature
-		valid, err := verifySignature([]byte(req.Message), publicKeyBytes, signatureBytes, protocolNum, curveNum)
+		// Verify the signature using the SDK's Verify method
+		valid, err := teeClient.Verify([]byte(req.Message), signatureBytes, req.AppID)
 		if err != nil {
 			log.Printf("Failed to verify signature: %v", err)
 			c.JSON(http.StatusInternalServerError, VerifyWithAppIDResponse{
