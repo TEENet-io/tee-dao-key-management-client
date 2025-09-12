@@ -195,7 +195,7 @@ Current voting decision implementation:
 ### Installation
 
 ```bash
-go get github.com/TEENet-io/tee-dao-key-management-client/go
+go get github.com/TEENet-io/teenet-sdk/go
 ```
 
 ### Basic Usage
@@ -212,7 +212,7 @@ import (
     "net/http"
     "strings"
     
-    client "github.com/TEENet-io/tee-dao-key-management-client/go"
+    client "github.com/TEENet-io/teenet-sdk/go"
 )
 
 func main() {
@@ -301,13 +301,13 @@ func handleVotingRequest(w http.ResponseWriter, r *http.Request) {
 ### Installation
 
 ```bash
-npm install @teenet/tee-dao-key-management-client
+npm install @teenet/teenet-sdk
 ```
 
 ### Basic Usage
 
 ```typescript
-import { Client, SignRequest } from '@teenet/tee-dao-key-management-client';
+import { Client, SignRequest } from '@teenet/teenet-sdk';
 
 async function main() {
   // Create and initialize client

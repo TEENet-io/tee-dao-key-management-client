@@ -24,8 +24,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/constants"
-	"github.com/TEENet-io/tee-dao-key-management-client/go/proto/appid"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/constants"
+	"github.com/TEENet-io/teenet-sdk/go/proto/appid"
 )
 
 // Client handles gRPC communication with the user management system

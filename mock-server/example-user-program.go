@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	client "github.com/TEENet-io/tee-dao-key-management-client/go"
+	client "github.com/TEENet-io/teenet-sdk/go"
 )
 
 func main() {

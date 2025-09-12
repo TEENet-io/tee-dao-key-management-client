@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.29.3
-// source: proto/key_management/user_task.proto
+// source: user_task.proto
 
 package key_management
 
@@ -121,5 +121,5 @@ var UserTask_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/key_management/user_task.proto",
+	Metadata: "user_task.proto",
 }

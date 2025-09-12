@@ -20,7 +20,7 @@ import (
 	"log"
 	"net"
 
-	pb "github.com/TEENet-io/tee-dao-key-management-client/go/proto/voting"
+	pb "github.com/TEENet-io/teenet-sdk/go/proto/voting"
 	"google.golang.org/grpc"
 )
 

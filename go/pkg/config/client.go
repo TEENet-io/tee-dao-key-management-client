@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/constants"
-	nmpb "github.com/TEENet-io/tee-dao-key-management-client/go/proto/node_management"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/constants"
+	nmpb "github.com/TEENet-io/teenet-sdk/go/proto/node_management"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

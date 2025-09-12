@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/usermgmt"
-	pb "github.com/TEENet-io/tee-dao-key-management-client/go/proto/voting"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/usermgmt"
+	pb "github.com/TEENet-io/teenet-sdk/go/proto/voting"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

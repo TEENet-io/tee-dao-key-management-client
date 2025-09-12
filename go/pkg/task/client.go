@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/config"
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/constants"
-	pb "github.com/TEENet-io/tee-dao-key-management-client/go/proto/key_management"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/config"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/constants"
+	pb "github.com/TEENet-io/teenet-sdk/go/proto/key_management"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"

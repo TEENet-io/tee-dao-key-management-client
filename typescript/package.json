@@ -1,7 +1,7 @@
 {
-  "name": "@teenet/tee-dao-key-management-client",
+  "name": "@teenet/teenet-sdk",
   "version": "0.0.0-20250901074647-a3331f45cc54",
-  "description": "TEE DAO Key Management Client for TypeScript",
+  "description": "TEENet SDK for TypeScript",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

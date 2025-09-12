@@ -1,4 +1,4 @@
-module github.com/TEENet-io/tee-dao-key-management-client/go
+module github.com/TEENet-io/teenet-sdk/go
 
 go 1.24.2
 

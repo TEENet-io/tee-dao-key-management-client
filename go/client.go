@@ -24,13 +24,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/config"
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/constants"
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/task"
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/usermgmt"
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/utils"
-	"github.com/TEENet-io/tee-dao-key-management-client/go/pkg/voting"
-	pb "github.com/TEENet-io/tee-dao-key-management-client/go/proto/voting"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/config"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/constants"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/task"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/usermgmt"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/utils"
+	"github.com/TEENet-io/teenet-sdk/go/pkg/voting"
+	pb "github.com/TEENet-io/teenet-sdk/go/proto/voting"
 	"google.golang.org/grpc"
 )
 

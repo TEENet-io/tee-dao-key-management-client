@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/TEENet-io/tee-dao-key-management-client/go/proto/key_management"; // the golang package name
+option go_package = "github.com/TEENet-io/teenet-sdk/go/proto/key_management"; // the golang package name
 
 // UserTask service for user operations in the key management system.
 service UserTask {

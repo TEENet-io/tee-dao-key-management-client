@@ -5,10 +5,12 @@ go 1.24.2
 toolchain go1.24.3
 
 require (
-	github.com/TEENet-io/tee-dao-key-management-client/go v0.0.0-20250808100006-156f3fef0a7c
+	github.com/TEENet-io/teenet-sdk/go v0.0.0-00010101000000-000000000000
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
 )
+
+replace github.com/TEENet-io/teenet-sdk/go => ../go
 
 require (
 	golang.org/x/net v0.35.0 // indirect
