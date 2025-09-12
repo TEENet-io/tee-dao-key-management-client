@@ -16,12 +16,13 @@ package client
 
 import (
 	"context"
-	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/TEENet-io/teenet-sdk/go/pkg/config"
@@ -212,10 +213,14 @@ func (c *Client) signWithAppID(message []byte, appID string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to parse curve: %w", err)
 	}
 
-	// Decode the public key from base64
-	publicKey, err := base64.StdEncoding.DecodeString(publicKeyStr)
+	// Decode the public key from hex (remove 0x prefix if present)
+	publicKeyHex := publicKeyStr
+	if strings.HasPrefix(publicKeyStr, "0x") || strings.HasPrefix(publicKeyStr, "0X") {
+		publicKeyHex = publicKeyStr[2:]
+	}
+	publicKey, err := hex.DecodeString(publicKeyHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %w", err)
+		return nil, fmt.Errorf("failed to decode public key from hex: %w", err)
 	}
 
 	// Sign the message
